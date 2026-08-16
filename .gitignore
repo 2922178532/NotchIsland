@@ -1,0 +1,10 @@
+.build/
+build/
+dist/
+.DS_Store
+*.xcodeproj
+.swiftpm/
+
+# 视频推广的个人素材，不随仓库发布
+视频脚本.md
+B站文案.md
