@@ -281,6 +281,8 @@ Tests/NotchIslandTests/  单元测试：几何计算、粘贴板解析、暂存�
 
 欢迎提 Issue 和 PR，开发环境、代码风格与提交要求见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
+不确定是不是 bug、想问怎么用，或者有还没成形的想法，都可以去[讨论区](https://github.com/2922178532/NotchIsland/discussions)聊。
+
 ## 致谢
 
 功耗监测部分移植自 [Imad El Hitti](https://github.com/imadhy) 的 [JuiceFlow](https://github.com/imadhy/juice-flow)，

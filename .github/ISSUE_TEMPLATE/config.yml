@@ -1,1 +1,10 @@
+# 保留「不用模板直接开 Issue」的入口：模板覆盖不到的情况不该被挡住。
 blank_issues_enabled: true
+
+contact_links:
+  - name: 使用问题与求助
+    url: https://github.com/2922178532/NotchIsland/discussions/categories/q-a
+    about: 不确定是不是 bug、想问怎么用、或者在某台机型上行为奇怪，先来讨论区问。
+  - name: 功能想法与讨论
+    url: https://github.com/2922178532/NotchIsland/discussions/categories/ideas
+    about: 还没成形的想法、想投票的方向，发到讨论区比开 Issue 更合适。
