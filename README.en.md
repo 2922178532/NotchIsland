@@ -280,6 +280,8 @@ Two key design choices:
 
 Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, code style, and submission checklist.
 
+For usage questions, "is this a bug?" uncertainty, or half-formed ideas, use [Discussions](https://github.com/2922178532/NotchIsland/discussions) instead.
+
 ## Acknowledgments
 
 Power monitoring is ported from [Imad El Hitti](https://github.com/imadhy)'s [JuiceFlow](https://github.com/imadhy/juice-flow),

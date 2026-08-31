@@ -2,6 +2,9 @@
 
 欢迎提 Issue 和 Pull Request。这个项目目前由一个人维护，所以流程尽量简单。
 
+不确定是不是 bug、或者只是想问怎么用，先去[讨论区](https://github.com/2922178532/NotchIsland/discussions)问，
+Issue 尽量留给确认的缺陷和明确的功能请求。
+
 ## 提 Issue
 
 **报告问题**前请附上这些信息，能省掉一轮来回：
