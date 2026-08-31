@@ -12,9 +12,20 @@ EXECUTABLE_NAME="NotchIsland"
 OUTPUT_DIR="dist"
 APP_BUNDLE="${OUTPUT_DIR}/${BUNDLE_NAME}.app"
 
-echo "==> 编译（${CONFIGURATION}）"
-swift build -c "${CONFIGURATION}" --disable-sandbox
-BIN_PATH="$(swift build -c "${CONFIGURATION}" --disable-sandbox --show-bin-path)"
+# 发版用 NOTCHISLAND_UNIVERSAL=1 打通用二进制（arm64 + x86_64），
+# 让 Intel 机型不必自行编译；日常开发保持单架构，编译快一倍。
+# 注意：带 --arch 之后 --show-bin-path 会指向 .build/apple/Products/<Config>，
+# 所以两次调用必须传完全相同的参数。
+BUILD_FLAGS=(-c "${CONFIGURATION}" --disable-sandbox)
+ARCH_LABEL="本机架构"
+if [ "${NOTCHISLAND_UNIVERSAL:-0}" = "1" ]; then
+	BUILD_FLAGS+=(--arch arm64 --arch x86_64)
+	ARCH_LABEL="universal: arm64 + x86_64"
+fi
+
+echo "==> 编译（${CONFIGURATION}，${ARCH_LABEL}）"
+swift build "${BUILD_FLAGS[@]}"
+BIN_PATH="$(swift build "${BUILD_FLAGS[@]}" --show-bin-path)"
 
 echo "==> 打包 ${APP_BUNDLE}"
 rm -rf "${APP_BUNDLE}"
@@ -46,3 +57,16 @@ else
 fi
 
 echo "完成：${APP_BUNDLE}"
+
+# 通用包必须真的是双架构：万一 --arch 被工具链忽略而静默退化成单架构，
+# 发出去的包在 Intel 上直接起不来，构建期就该拦住。
+if [ "${NOTCHISLAND_UNIVERSAL:-0}" = "1" ]; then
+	ARCHS="$(lipo -archs "${APP_BUNDLE}/Contents/MacOS/${EXECUTABLE_NAME}")"
+	echo "==> 架构：${ARCHS}"
+	for required in arm64 x86_64; do
+		case " ${ARCHS} " in
+			*" ${required} "*) ;;
+			*) echo "错误：通用包缺少 ${required} 架构（实际为 ${ARCHS}）" >&2; exit 1 ;;
+		esac
+	done
+fi

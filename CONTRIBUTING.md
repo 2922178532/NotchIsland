@@ -34,8 +34,9 @@ git clone https://github.com/2922178532/NotchIsland.git
 cd NotchIsland
 swift build          # 编译
 swift test           # 跑单元测试
-./build.sh           # 打包成 dist/刘海岛.app
+./build.sh           # 打包成 dist/刘海岛.app（仅本机架构）
 ./build.sh debug     # 打包调试版本
+NOTCHISLAND_UNIVERSAL=1 ./build.sh   # 通用二进制，发版用；会校验产物确实是双架构
 ```
 
 不改动鼠标就想看展开效果：

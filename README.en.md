@@ -7,7 +7,7 @@ Turn your MacBook notch into a multifunctional island: **file staging**, **recov
 [![Latest release](https://img.shields.io/github/v/release/2922178532/NotchIsland?include_prereleases&label=Latest%20release&color=black)](https://github.com/2922178532/NotchIsland/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/2922178532/NotchIsland/ci.yml?branch=main&label=CI&color=black)](https://github.com/2922178532/NotchIsland/actions/workflows/ci.yml)
 ![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-black)
-![Architecture](https://img.shields.io/badge/Architecture-Apple%20Silicon-black)
+![Architecture](https://img.shields.io/badge/Architecture-Universal%20(arm64%20%2B%20x86__64)-black)
 ![Dependencies](https://img.shields.io/badge/Third--party%20deps-None-black)
 [![License](https://img.shields.io/badge/License-MIT-black)](LICENSE)
 
@@ -24,7 +24,7 @@ Turn your MacBook notch into a multifunctional island: **file staging**, **recov
 - Recover menu bar icons hidden by the notch; click once to open their original menus
 - Hover over the notch to see system power draw, with a full power dashboard built in
 - Runs fully offline—no network requests, telemetry, or update checks
-- Zero third-party dependencies, pure Swift, ~3 MB app size
+- Zero third-party dependencies, pure Swift, ~6 MB universal binary
 
 ## Quick start
 
@@ -34,7 +34,7 @@ Turn your MacBook notch into a multifunctional island: **file staging**, **recov
 
 After installation, a menu bar tray icon appears. Move your mouse to the notch to expand the panel. File staging and hotkeys work out of the box with **no permissions required**; grant Accessibility when prompted if you want the menu bar icon recovery feature.
 
-Prebuilt binaries are **Apple Silicon (arm64) only** for now—Intel Macs should build from source. Macs without a physical notch (or external displays) are supported too; the app simulates a menu-bar-height island at the top center of the screen.
+Prebuilt binaries are **universal** (Apple Silicon + Intel) and run natively on both. Note that the author only has Apple Silicon hardware—the Intel slice is cross-compiled but never verified on a real machine, so please file an issue if something breaks. Macs without a physical notch (or external displays) are supported too; the app simulates a menu-bar-height island at the top center of the screen.
 
 <details>
 <summary><b>Build from source</b></summary>
@@ -48,7 +48,13 @@ cd NotchIsland
 open dist/刘海岛.app
 ```
 
-Use `./build.sh debug` for a debug build. To sign with your own developer certificate:
+Use `./build.sh debug` for a debug build. By default only the host architecture is compiled; set an environment variable to produce a universal binary (arm64 + x86_64, roughly double the build time):
+
+```bash
+NOTCHISLAND_UNIVERSAL=1 ./build.sh
+```
+
+To sign with your own developer certificate:
 
 ```bash
 NOTCHISLAND_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./build.sh
@@ -188,7 +194,7 @@ With [auto-collect clipboard](#clipboard) enabled, copied content is written to 
 
 ## Known limitations
 
-- Prebuilt binaries are Apple Silicon only; Intel builds are untested.
+- Prebuilt binaries are universal, but the Intel slice is only cross-compiled—never verified on real hardware.
 - Ad-hoc signing triggers Gatekeeper prompts and requires re-granting Accessibility after each rebuild.
 - No auto-update—download new releases manually.
 - Preview quality. Pure-logic code (geometry, pasteboard parsing, shelf storage, powermetrics parsing) is covered by unit tests; UI and system integration are still verified by hand. [Issues](https://github.com/2922178532/NotchIsland/issues) welcome.

@@ -30,8 +30,8 @@ jobs:
       - name: 单元测试
         run: swift test
 
-      - name: 打包 .app（release）
-        run: ./build.sh
+      - name: 打包 .app（release，通用二进制）
+        run: NOTCHISLAND_UNIVERSAL=1 ./build.sh
 
       - name: 校验产物结构
         run: |
@@ -43,12 +43,21 @@ jobs:
           test -f "$APP/Contents/Resources/LICENSE"
           test -f "$APP/Contents/Resources/THIRD-PARTY-LICENSES.md"
           codesign --verify --verbose "$APP"
+          # 发布包必须是 arm64 + x86_64，否则 Intel 机型拿到的包起不来。
+          ARCHS="$(lipo -archs "$APP/Contents/MacOS/NotchIsland")"
+          echo "架构：$ARCHS"
+          for required in arm64 x86_64; do
+            case " $ARCHS " in
+              *" $required "*) ;;
+              *) echo "::error::通用包缺少 $required 架构（实际为 $ARCHS）"; exit 1 ;;
+            esac
+          done
           echo "产物校验通过"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: NotchIsland-app
+          name: NotchIsland-app-universal
           path: dist/
           retention-days: 7
           if-no-files-found: error
