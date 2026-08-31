@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 同一分支上只保留最新一次运行，推得快的时候不浪费额度。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: 构建与测试
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 工具链版本
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: 构建（debug）
+        run: swift build -v
+
+      - name: 单元测试
+        run: swift test
+
+      - name: 打包 .app（release）
+        run: ./build.sh
+
+      - name: 校验产物结构
+        run: |
+          set -euo pipefail
+          APP="dist/刘海岛.app"
+          test -x "$APP/Contents/MacOS/NotchIsland"
+          test -f "$APP/Contents/Info.plist"
+          # MIT 要求分发副本里保留许可证与第三方声明。
+          test -f "$APP/Contents/Resources/LICENSE"
+          test -f "$APP/Contents/Resources/THIRD-PARTY-LICENSES.md"
+          codesign --verify --verbose "$APP"
+          echo "产物校验通过"
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: NotchIsland-app
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
