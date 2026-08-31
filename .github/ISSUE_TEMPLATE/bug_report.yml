@@ -1,0 +1,86 @@
+name: 报告问题
+description: 程序崩溃、功能不正常、界面异常
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。麻烦尽量填全下面的信息，能省掉一轮来回。
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 问题描述
+      description: 实际发生了什么，你期望发生什么。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 把文件拖到刘海上
+        2. 切到别的应用
+        3. ……
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: NotchIsland 版本
+      description: Release 的版本号，或自行编译的 commit。
+      placeholder: v1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS 版本与机型
+      placeholder: macOS 15.1 / MacBook Pro 14" M3
+    validations:
+      required: true
+
+  - type: dropdown
+    id: notch
+    attributes:
+      label: 屏幕情况
+      options:
+        - 有物理刘海的内置屏
+        - 无刘海的内置屏（模拟区域）
+        - 外接显示器
+        - 内置屏 + 外接显示器同时使用
+    validations:
+      required: true
+
+  - type: dropdown
+    id: feature
+    attributes:
+      label: 涉及的功能
+      options:
+        - 文件中转 / 拖拽
+        - 剪贴板自动收存
+        - 被刘海挡住的菜单栏图标
+        - 功耗监测
+        - 快捷键
+        - 安装 / 启动 / 权限
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnose
+    attributes:
+      label: 诊断输出（岛的位置或大小不对时必填）
+      description: |
+        终端里运行下面这条，把输出贴进来：
+        `"/Applications/刘海岛.app/Contents/MacOS/NotchIsland" --diagnose`
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息
+      description: 截图、录屏、控制台日志都可以直接拖进来。

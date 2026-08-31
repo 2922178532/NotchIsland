@@ -1,0 +1,33 @@
+name: 功能建议
+description: 希望刘海岛能多做一件什么事
+labels: [enhancement]
+body:
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景
+      description: 你在什么情况下会需要它？说清场景比说清实现更有用。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望的行为
+      description: 你希望它怎么工作。如果有具体的交互设想也可以写。
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 目前你是怎么绕过去的
+      description: 现在用什么方式凑合解决，或者用了哪个别的工具。
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: 确认
+      options:
+        - label: 我看过 README 的「计划中」一节，这件事还没在列表里
+        - label: 我确认这个功能不需要引入第三方依赖，或者我愿意先在 Issue 里讨论依赖问题

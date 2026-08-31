@@ -5,6 +5,7 @@
 Turn your MacBook notch into a multifunctional island: **file staging**, **recover hidden menu bar icons**, and **real-time power monitoring**.
 
 [![Latest release](https://img.shields.io/github/v/release/2922178532/NotchIsland?include_prereleases&label=Latest%20release&color=black)](https://github.com/2922178532/NotchIsland/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/2922178532/NotchIsland/ci.yml?branch=main&label=CI&color=black)](https://github.com/2922178532/NotchIsland/actions/workflows/ci.yml)
 ![Platform](https://img.shields.io/badge/Platform-macOS%2014%2B-black)
 ![Architecture](https://img.shields.io/badge/Architecture-Apple%20Silicon-black)
 ![Dependencies](https://img.shields.io/badge/Third--party%20deps-None-black)
@@ -51,6 +52,12 @@ Use `./build.sh debug` for a debug build. To sign with your own developer certif
 
 ```bash
 NOTCHISLAND_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./build.sh
+```
+
+Run the unit tests (notch geometry, pasteboard parsing, shelf storage, powermetrics output parsing):
+
+```bash
+swift test
 ```
 
 </details>
@@ -183,7 +190,7 @@ With [auto-collect clipboard](#clipboard) enabled, copied content is written to 
 - Prebuilt binaries are Apple Silicon only; Intel builds are untested.
 - Ad-hoc signing triggers Gatekeeper prompts and requires re-granting Accessibility after each rebuild.
 - No auto-update—download new releases manually.
-- Preview quality; no automated tests yet. [Issues](https://github.com/2922178532/NotchIsland/issues) welcome.
+- Preview quality. Pure-logic code (geometry, pasteboard parsing, shelf storage, powermetrics parsing) is covered by unit tests; UI and system integration are still verified by hand. [Issues](https://github.com/2922178532/NotchIsland/issues) welcome.
 
 <details>
 <summary><b>Troubleshooting</b></summary>
@@ -245,6 +252,8 @@ Sources/NotchIsland/
 │   └── PowerCenter.swift   Power service container and dashboard window
 ├── JuiceFlow/      Power monitoring from JuiceFlow (SMC, process sampling, history, alerts, UI)
 └── UI/             SwiftUI views
+
+Tests/NotchIslandTests/  Unit tests: geometry, pasteboard parsing, shelf storage, powermetrics parsing
 ```
 
 Two key design choices:
@@ -259,6 +268,10 @@ Two key design choices:
 - Customizable hotkey combinations in the UI
 - Clipboard history
 - Manual sort and grouping for staged items
+
+## Contributing
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, code style, and submission checklist.
 
 ## Acknowledgments
 
