@@ -34,6 +34,16 @@ final class ShelfStore: ObservableObject {
         load()
     }
 
+    /// 指定暂存根目录。测试里指向临时目录，避免动到用户真实的暂存内容。
+    init(rootDirectory: URL) {
+        rootURL = rootDirectory
+        itemsURL = rootURL.appendingPathComponent("Items", isDirectory: true)
+        indexURL = rootURL.appendingPathComponent("index.json")
+
+        try? fileManager.createDirectory(at: itemsURL, withIntermediateDirectories: true)
+        load()
+    }
+
     // MARK: - 查询
 
     var isEmpty: Bool { items.isEmpty }
