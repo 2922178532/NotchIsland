@@ -19,12 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This project includes third-party code that remains under its original
-copyright. See THIRD-PARTY-LICENSES.md for the full license texts.
-
-  Sources/NotchIsland/JuiceFlow/
-    JuiceFlow — Copyright (c) 2026 Imad El Hitti — MIT License
-    https://github.com/imadhy/juice-flow
