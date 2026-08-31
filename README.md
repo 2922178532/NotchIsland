@@ -10,9 +10,9 @@
 
 **[下载最新版本 →](https://github.com/2922178532/NotchIsland/releases/latest)**
 
-<p align="center">
+<div align="center">
   <img src="docs/images/expanded.png" width="760" alt="展开的刘海岛面板：文件卡片、被刘海挡住的图标行、实时功耗">
-</p>
+</div>
 
 ## 亮点
 
