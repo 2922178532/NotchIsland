@@ -65,10 +65,16 @@ struct MenuBarStripView: View {
             Image(systemName: "lock.shield")
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.5))
-            Text("授权「辅助功能」后，被刘海挡住的菜单栏图标会显示在这里")
-                .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.6))
-                .lineLimit(2)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("授权「辅助功能」后，被刘海挡住的菜单栏图标会显示在这里")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(2)
+                Text("若设置里已开启仍提示授权，请先关闭再重新打开「刘海岛」，然后重启应用（更新后签名会变）")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.white.opacity(0.38))
+                    .lineLimit(3)
+            }
             Spacer(minLength: 4)
             Button(action: onRequestAccessibility) {
                 Text("去授权")
