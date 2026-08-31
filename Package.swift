@@ -9,6 +9,11 @@ let package = Package(
             name: "NotchIsland",
             path: "Sources/NotchIsland",
             exclude: ["JuiceFlow/LICENSE"]
-        )
+        ),
+        .testTarget(
+            name: "NotchIslandTests",
+            dependencies: ["NotchIsland"],
+            path: "Tests/NotchIslandTests"
+        ),
     ]
 )
