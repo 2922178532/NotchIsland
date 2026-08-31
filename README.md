@@ -7,7 +7,7 @@
 [![最新版本](https://img.shields.io/github/v/release/2922178532/NotchIsland?include_prereleases&label=最新版本&color=black)](https://github.com/2922178532/NotchIsland/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/2922178532/NotchIsland/ci.yml?branch=main&label=CI&color=black)](https://github.com/2922178532/NotchIsland/actions/workflows/ci.yml)
 ![平台](https://img.shields.io/badge/平台-macOS%2014%2B-black)
-![架构](https://img.shields.io/badge/架构-Apple%20Silicon-black)
+![架构](https://img.shields.io/badge/架构-Universal%20(arm64%20%2B%20x86__64)-black)
 ![依赖](https://img.shields.io/badge/第三方依赖-无-black)
 [![许可证](https://img.shields.io/badge/许可证-MIT-black)](LICENSE)
 
@@ -24,7 +24,7 @@
 - 找回被刘海挤掉的菜单栏图标，点一下就能弹出它原本的菜单
 - 悬停刘海直接看到整机功耗，内置完整的功耗仪表盘
 - 完全离线运行，没有任何网络请求、遥测或更新检查
-- 零第三方依赖，纯 Swift 实现，应用体积约 3 MB
+- 零第三方依赖，纯 Swift 实现，通用二进制约 6 MB
 
 ## 快速开始
 
@@ -34,7 +34,7 @@
 
 装好后菜单栏会出现一个托盘图标，鼠标移到刘海上即可展开面板。文件中转和快捷键开箱即用，**不需要任何权限**；想用菜单栏图标功能，再按提示授予「辅助功能」权限即可。
 
-预编译包目前只提供 **Apple Silicon（arm64）** 版本，Intel 机型请自行编译。没有物理刘海的机型（或外接显示器）也能用，程序会在屏幕顶部正中模拟一块与菜单栏等高的区域作为岛。
+预编译包是**通用二进制**（Apple Silicon + Intel），两种机型都能直接运行——但作者手上只有 Apple Silicon 机器，Intel 部分只做过交叉编译，没有实机验证过，遇到问题请提 Issue。没有物理刘海的机型（或外接显示器）也能用，程序会在屏幕顶部正中模拟一块与菜单栏等高的区域作为岛。
 
 <details>
 <summary><b>从源码构建</b></summary>
@@ -48,7 +48,13 @@ cd NotchIsland
 open dist/刘海岛.app
 ```
 
-`./build.sh debug` 可以构建调试版本。若要用自己的开发者证书签名，设置环境变量后再构建：
+`./build.sh debug` 可以构建调试版本。默认只编译本机架构，加环境变量可以打通用二进制（arm64 + x86_64，编译时间约翻倍）：
+
+```bash
+NOTCHISLAND_UNIVERSAL=1 ./build.sh
+```
+
+若要用自己的开发者证书签名，设置环境变量后再构建：
 
 ```bash
 NOTCHISLAND_SIGN_IDENTITY="Developer ID Application: 你的名字 (TEAMID)" ./build.sh
@@ -188,7 +194,7 @@ NotchIsland **完全离线运行**，没有任何网络请求、遥测或更新�
 
 ## 已知限制
 
-- 预编译包只有 Apple Silicon 版本，Intel 机型需自行编译，且未经充分测试。
+- 预编译包是通用二进制，但 Intel 机型只经过交叉编译，未在实机上验证。
 - ad-hoc 签名会触发 Gatekeeper 提示，且每次重建后需要重新授予辅助功能权限。
 - 没有自动更新，新版本需要手动下载。
 - 目前是预览版本。纯逻辑部分（几何计算、粘贴板解析、暂存存储、powermetrics 解析）有单元测试覆盖，
