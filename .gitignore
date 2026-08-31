@@ -8,3 +8,15 @@ dist/
 # 视频推广的个人素材，不随仓库发布
 视频脚本.md
 B站文案.md
+
+# 本地构建备份
+.rebuild-backup/
+
+# 与 NotchIsland 无关的本地实验与文档
+android/
+*.docx
+*.srt
+
+# 截图工具与临时素材，别误提交进仓库
+PixPin_*.png
+示例图片.png
