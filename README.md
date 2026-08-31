@@ -5,6 +5,7 @@
 把 MacBook 的刘海变成一个多功能岛：**文件中转**、**找回被遮挡的菜单栏图标**、**实时功耗监测**。
 
 [![最新版本](https://img.shields.io/github/v/release/2922178532/NotchIsland?include_prereleases&label=最新版本&color=black)](https://github.com/2922178532/NotchIsland/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/2922178532/NotchIsland/ci.yml?branch=main&label=CI&color=black)](https://github.com/2922178532/NotchIsland/actions/workflows/ci.yml)
 ![平台](https://img.shields.io/badge/平台-macOS%2014%2B-black)
 ![架构](https://img.shields.io/badge/架构-Apple%20Silicon-black)
 ![依赖](https://img.shields.io/badge/第三方依赖-无-black)
@@ -51,6 +52,12 @@ open dist/刘海岛.app
 
 ```bash
 NOTCHISLAND_SIGN_IDENTITY="Developer ID Application: 你的名字 (TEAMID)" ./build.sh
+```
+
+跑单元测试（覆盖刘海几何计算、粘贴板解析、暂存存储与 powermetrics 输出解析）：
+
+```bash
+swift test
 ```
 
 </details>
@@ -183,7 +190,8 @@ NotchIsland **完全离线运行**，没有任何网络请求、遥测或更新�
 - 预编译包只有 Apple Silicon 版本，Intel 机型需自行编译，且未经充分测试。
 - ad-hoc 签名会触发 Gatekeeper 提示，且每次重建后需要重新授予辅助功能权限。
 - 没有自动更新，新版本需要手动下载。
-- 目前是预览版本，尚未建立自动化测试。遇到问题欢迎提 [Issue](https://github.com/2922178532/NotchIsland/issues)。
+- 目前是预览版本。纯逻辑部分（几何计算、粘贴板解析、暂存存储、powermetrics 解析）有单元测试覆盖，
+  界面与系统交互部分仍靠手工验证。遇到问题欢迎提 [Issue](https://github.com/2922178532/NotchIsland/issues)。
 
 <details>
 <summary><b>排查</b></summary>
@@ -245,6 +253,8 @@ Sources/NotchIsland/
 │   └── PowerCenter.swift   功耗服务容器与仪表盘窗口
 ├── JuiceFlow/      整合自 JuiceFlow 的功耗监测（SMC、进程采样、历史、告警、界面）
 └── UI/             SwiftUI 界面
+
+Tests/NotchIslandTests/  单元测试：几何计算、粘贴板解析、暂存存储、powermetrics 解析
 ```
 
 两个关键设计：
@@ -259,6 +269,10 @@ Sources/NotchIsland/
 - 快捷键组合支持在界面里自定义
 - 剪贴板历史
 - 暂存项手动排序与分组
+
+## 参与开发
+
+欢迎提 Issue 和 PR，开发环境、代码风格与提交要求见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 致谢
 
