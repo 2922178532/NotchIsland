@@ -1,5 +1,27 @@
 import Foundation
 
+/// 鼠标不在岛上时的默认展示状态。
+enum IdleRestMode: String, CaseIterable {
+    /// 与物理刘海融为一体，最省空间。
+    case collapsed
+    /// 略放大并常显实时功耗，便于随时查看。
+    case hovering
+
+    var title: String {
+        switch self {
+        case .collapsed: return "收起（原生刘海）"
+        case .hovering: return "悬停（常显功耗）"
+        }
+    }
+
+    var notchMode: NotchMode {
+        switch self {
+        case .collapsed: return .collapsed
+        case .hovering: return .hovering
+        }
+    }
+}
+
 /// 用户偏好，存放在 `UserDefaults` 中。
 @MainActor
 final class Preferences: ObservableObject {
@@ -11,6 +33,7 @@ final class Preferences: ObservableObject {
         static let menuBarManagerEnabled = "NotchIsland.menuBarManagerEnabled"
         static let expandDelay = "NotchIsland.expandDelay"
         static let hideIdleIndicator = "NotchIsland.hideIdleIndicator"
+        static let idleRestMode = "NotchIsland.idleRestMode"
         static let autoCollectClipboard = "NotchIsland.autoCollectClipboard"
         static let hiddenMenuBarApps = "NotchIsland.hiddenMenuBarApps"
         static let importSoundName = "NotchIsland.importSoundName"
@@ -40,6 +63,11 @@ final class Preferences: ObservableObject {
     /// 只影响视觉：悬停、拖拽、快捷键等交互不受影响。
     @Published var hideIdleIndicator: Bool {
         didSet { UserDefaults.standard.set(hideIdleIndicator, forKey: Key.hideIdleIndicator) }
+    }
+
+    /// 鼠标不在岛上、且未展开面板时的默认展示状态。
+    @Published var idleRestMode: IdleRestMode {
+        didSet { UserDefaults.standard.set(idleRestMode.rawValue, forKey: Key.idleRestMode) }
     }
 
     /// 自动把复制到剪贴板的文件和图片收进刘海岛。
@@ -96,6 +124,7 @@ final class Preferences: ObservableObject {
             Key.menuBarManagerEnabled: true,
             Key.expandDelay: 0.25,
             Key.hideIdleIndicator: false,
+            Key.idleRestMode: IdleRestMode.collapsed.rawValue,
             Key.autoCollectClipboard: false,
             Key.importSoundName: "Tink",
         ])
@@ -104,6 +133,8 @@ final class Preferences: ObservableObject {
         menuBarManagerEnabled = defaults.bool(forKey: Key.menuBarManagerEnabled)
         expandDelay = defaults.double(forKey: Key.expandDelay)
         hideIdleIndicator = defaults.bool(forKey: Key.hideIdleIndicator)
+        idleRestMode = IdleRestMode(rawValue: defaults.string(forKey: Key.idleRestMode) ?? "")
+            ?? .collapsed
         autoCollectClipboard = defaults.bool(forKey: Key.autoCollectClipboard)
         hiddenMenuBarApps = defaults.stringArray(forKey: Key.hiddenMenuBarApps) ?? []
         importSoundName = defaults.string(forKey: Key.importSoundName) ?? "Tink"

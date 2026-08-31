@@ -127,6 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case autoCollectClipboard = 10
         case restoreExcludedIcons = 11
         case importSound = 12
+        case idleRestModeMenu = 13
     }
 
     private func buildMenu() -> NSMenu {
@@ -160,6 +161,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         expandDelay.tag = MenuTag.expandDelayMenu.rawValue
         expandDelay.submenu = buildExpandDelayMenu()
         menu.addItem(expandDelay)
+
+        let idleRest = NSMenuItem(title: "空闲时显示", action: nil, keyEquivalent: "")
+        idleRest.tag = MenuTag.idleRestModeMenu.rawValue
+        idleRest.submenu = buildIdleRestModeMenu()
+        menu.addItem(idleRest)
 
         let autoCollect = NSMenuItem(title: "自动收存剪贴板内容", action: #selector(toggleAutoCollectClipboard), keyEquivalent: "")
         autoCollect.tag = MenuTag.autoCollectClipboard.rawValue
@@ -222,6 +228,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let item = NSMenuItem(title: option.title, action: #selector(selectExpandDelay(_:)), keyEquivalent: "")
             // tag 只能存整数，用毫秒表示。
             item.tag = Int(option.delay * 1000)
+            item.target = self
+            submenu.addItem(item)
+        }
+        return submenu
+    }
+
+    private func buildIdleRestModeMenu() -> NSMenu {
+        let submenu = NSMenu()
+        for mode in IdleRestMode.allCases {
+            let item = NSMenuItem(title: mode.title, action: #selector(selectIdleRestMode(_:)), keyEquivalent: "")
+            item.representedObject = mode.rawValue
             item.target = self
             submenu.addItem(item)
         }
@@ -308,6 +325,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func selectExpandDelay(_ sender: NSMenuItem) {
         Preferences.shared.expandDelay = Double(sender.tag) / 1000
+    }
+
+    @objc private func selectIdleRestMode(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let mode = IdleRestMode(rawValue: raw) else { return }
+        Preferences.shared.idleRestMode = mode
+        controller?.applyRestingModeIfIdle()
     }
 
     @objc private func toggleLaunchAtLogin() {
@@ -419,6 +443,12 @@ extension AppDelegate: NSMenuDelegate {
             let delayMS = Int(Preferences.shared.expandDelay * 1000)
             for option in submenu.items {
                 option.state = option.tag == delayMS ? .on : .off
+            }
+        }
+        if let submenu = menu.item(withTag: MenuTag.idleRestModeMenu.rawValue)?.submenu {
+            let current = Preferences.shared.idleRestMode.rawValue
+            for option in submenu.items {
+                option.state = (option.representedObject as? String) == current ? .on : .off
             }
         }
     }

@@ -127,6 +127,7 @@ Click the tray icon (or the gear on the island) to open settings:
 
 - **Auto cleanup**: Keep forever / 1 / 3 / 7 / 30 days (default 7). Checked at launch and hourly thereafter.
 - **Hover expand delay**: Instant / 0.1 / 0.25 / 0.5 / 1 s (default 0.25 s).
+- **Idle appearance**: What the island looks like when the mouse is away—"Collapsed (native notch)" or "Hovering (always-on power draw)", default collapsed. Hovering keeps the island slightly enlarged with live power draw always visible, at the cost of a permanently larger notch area.
 - **Auto-collect clipboard contents**: Off by default. See [Data & privacy](#data--privacy) below.
 - **Drop sound**: Nine system sounds (including off); default "Tink"; selecting one plays a preview.
 - **Show icons hidden by the notch**: Master toggle for menu bar icon recovery (on by default).

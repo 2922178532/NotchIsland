@@ -34,6 +34,11 @@ final class NotchWindowController: NSObject {
     private let collapseDelay: TimeInterval = 0.28
     private let animationDuration: TimeInterval = 0.5
 
+    /// 鼠标不在岛上时的目标状态，由用户偏好决定。
+    private var restingMode: NotchMode {
+        Preferences.shared.idleRestMode.notchMode
+    }
+
     private(set) var isEnabled = true
     /// 用户主动呼出后，暂时忽略「全屏时隐藏」，直到重新收起。
     private var overridesFullScreenHiding = false
@@ -87,6 +92,7 @@ final class NotchWindowController: NSObject {
 
         startMonitoring()
         observeSystemChanges()
+        applyRestingModeIfIdle(animated: false)
     }
 
     deinit {
@@ -156,7 +162,24 @@ final class NotchWindowController: NSObject {
         overridesFullScreenHiding = false
         model.unpin()
         model.isDropTargeted = false
-        transition(to: .collapsed)
+        transition(to: restingMode)
+    }
+
+    /// 根据偏好切换到空闲时的展示状态（收起或常显悬停）。
+    func applyRestingModeIfIdle(animated: Bool = true) {
+        guard isEnabled, model.mode != .expanded, !model.isPinned, !model.isDropTargeted, !model.isDraggingOut else { return }
+        let target = restingMode
+        guard model.mode != target else { return }
+
+        if animated {
+            transition(to: target)
+        } else {
+            cancelPendingTransitions()
+            model.setMode(target)
+            panel.setFrame(model.windowFrame(for: target), display: false)
+            updateMouseTransparency(inside: model.activeHitRect.contains(NSEvent.mouseLocation))
+            updateIdleTimer()
+        }
     }
 
     func togglePin() {
@@ -202,6 +225,9 @@ final class NotchWindowController: NSObject {
             guard !panel.isVisible else { return }
             refreshGeometry()
             panel.orderFrontRegardless()
+            // 隐藏面板时 forceCollapse() 把状态硬置成了收起，这里要按偏好恢复：
+            // 否则选了「悬停」的用户退出全屏后，岛会一直保持收起直到手动划过去。
+            applyRestingModeIfIdle(animated: false)
         } else {
             guard panel.isVisible else { return }
             forceCollapse()
@@ -358,7 +384,7 @@ final class NotchWindowController: NSObject {
             self.collapseWork = nil
             guard !self.model.isPinned, !self.model.isDropTargeted, !self.model.isDraggingOut else { return }
             guard !self.model.activeHitRect.contains(NSEvent.mouseLocation) else { return }
-            self.transition(to: .collapsed)
+            self.transition(to: self.restingMode)
         }
         collapseWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + collapseDelay, execute: work)
@@ -405,7 +431,7 @@ final class NotchWindowController: NSObject {
         } else {
             expandWork?.cancel()
             expandWork = nil
-            guard model.mode != .collapsed, !model.isPinned, !model.isDropTargeted else { return }
+            guard model.mode != restingMode, !model.isPinned, !model.isDropTargeted else { return }
             scheduleCollapse()
         }
     }
@@ -427,7 +453,7 @@ final class NotchWindowController: NSObject {
     /// 鼠标可能在岛外停止移动而不再产生事件，用低频定时器兜底检查。
     private func updateIdleTimer() {
         idleTimer?.invalidate()
-        guard model.mode != .collapsed else {
+        guard !(model.mode == .collapsed && restingMode == .collapsed) else {
             idleTimer = nil
             return
         }
