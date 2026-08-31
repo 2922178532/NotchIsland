@@ -187,6 +187,13 @@ struct ShelfItemView: View {
         // 想让它们插入文字，就不能给它们文件可选。需要原始 txt 时用右键「在访达中显示」。
         if let text = store.textContent(of: item) {
             provider.registerObject(text as NSString, visibility: .all)
+
+            // 不同 App 对文本拖拽读取的 UTI 不一致：现代 App 通常读取
+            // `public.utf8-plain-text`，部分原生/老 App 只请求
+            // `public.plain-text` 或 UTF-16，富文本编辑器则优先 RTF/HTML。
+            // 同时注册多种表示，让接收方按自己支持的类型协商，不改变
+            // 文本条目“不提供文件 URL”的语义。
+            registerTextRepresentations(text, on: provider)
             return provider
         }
 
@@ -205,5 +212,98 @@ struct ShelfItemView: View {
             return nil
         }
         return provider
+    }
+
+    /// 为同一段文字注册常见的拖拽表示，覆盖原生控件、老式 App 和富文本编辑器。
+    private func registerTextRepresentations(_ text: String, on provider: NSItemProvider) {
+        let utf8 = Data(text.utf8)
+
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.text.identifier,
+            visibility: .all
+        ) { completion in
+            completion(utf8, nil)
+            return nil
+        }
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.plainText.identifier,
+            visibility: .all
+        ) { completion in
+            completion(utf8, nil)
+            return nil
+        }
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.utf8PlainText.identifier,
+            visibility: .all
+        ) { completion in
+            completion(utf8, nil)
+            return nil
+        }
+        // 两种 UTF-16 的约定不同，数据不能共用：
+        // `public.utf16-external-plain-text` 要求带 BOM 声明字节序；
+        // `public.utf16-plain-text` 是主机字节序且不带 BOM，混用会让接收方
+        // 把 BOM 当成正文，开头多出一个不可见的 U+FEFF。
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.utf16ExternalPlainText.identifier,
+            visibility: .all
+        ) { completion in
+            completion(Self.utf16ExternalData(for: text), nil)
+            return nil
+        }
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.utf16PlainText.identifier,
+            visibility: .all
+        ) { completion in
+            completion(Self.utf16HostData(for: text), nil)
+            return nil
+        }
+
+        if let rtf = NSAttributedString(string: text).rtf(
+            from: NSRange(location: 0, length: text.utf16.count),
+            documentAttributes: [:]
+        ) {
+            provider.registerDataRepresentation(
+                forTypeIdentifier: UTType.rtf.identifier,
+                visibility: .all
+            ) { completion in
+                completion(rtf, nil)
+                return nil
+            }
+        }
+
+        let html = Self.htmlRepresentation(for: text)
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.html.identifier,
+            visibility: .all
+        ) { completion in
+            completion(html, nil)
+            return nil
+        }
+    }
+
+    /// `public.utf16-external-plain-text`：带 BOM，接收方靠 BOM 判断字节序。
+    static func utf16ExternalData(for text: String) -> Data {
+        text.data(using: .utf16) ?? Data()
+    }
+
+    /// `public.utf16-plain-text`：主机字节序、不带 BOM。
+    /// Apple 现役平台都是小端，这里仍按运行时字节序取，避免写死假设。
+    static func utf16HostData(for text: String) -> Data {
+        let encoding: String.Encoding = CFByteOrderGetCurrent() == Int(CFByteOrderBigEndian.rawValue)
+            ? .utf16BigEndian
+            : .utf16LittleEndian
+        return text.data(using: encoding) ?? Data()
+    }
+
+    /// 生成最小 HTML 表示，保留换行并避免文本被解释成标签或实体。
+    static func htmlRepresentation(for text: String) -> Data {
+        let escaped = text
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "\n", with: "<br>\n")
+        let html = "<meta charset=\"utf-8\"><div>\(escaped)</div>"
+        return Data(html.utf8)
     }
 }
