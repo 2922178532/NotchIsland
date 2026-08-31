@@ -1,5 +1,7 @@
 # 刘海岛 · NotchIsland
 
+**[English](README.en.md)**
+
 把 MacBook 的刘海变成一个多功能岛：**文件中转**、**找回被遮挡的菜单栏图标**、**实时功耗监测**。
 
 [![最新版本](https://img.shields.io/github/v/release/2922178532/NotchIsland?include_prereleases&label=最新版本&color=black)](https://github.com/2922178532/NotchIsland/releases/latest)
