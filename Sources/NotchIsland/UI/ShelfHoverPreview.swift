@@ -174,13 +174,14 @@ final class ShelfHoverPreviewController {
                     ShelfPreviewContent.readText(at: url)
                 }.value
                 content = ShelfPreviewContent(item: item, text: text)
-            case .image:
+            case .image, .file:
+                // 与卡片共用 Quick Look：文档显示内容缩略图，不支持的格式由
+                // ThumbnailLoader 回退到图标。悬浮窗单独请求大尺寸，避免放大小图。
                 let image = await ThumbnailLoader.thumbnail(
-                    for: item, at: url, size: CGSize(width: 480, height: 320)
+                    for: item, at: url,
+                    size: CGSize(width: 480, height: item.category == .file ? 440 : 320)
                 )
                 content = ShelfPreviewContent(item: item, image: image)
-            case .file:
-                content = ShelfPreviewContent(item: item, image: NSWorkspace.shared.icon(forFile: url.path))
             }
             // 快速划过 A → B → A 时，旧任务也必须作废，不能只比较 item ID。
             guard !Task.isCancelled, let self, let anchor, self.activeID == ready,
@@ -280,12 +281,12 @@ struct ShelfPreviewContent: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: .infinity)
-                    .frame(height: item.category == .image ? 300 : 160)
+                    .frame(height: item.category == .image ? 300 : 420)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity)
-                    .frame(height: item.category == .image ? 300 : 160)
+                    .frame(height: item.category == .image ? 300 : 420)
             }
 
             Divider()
@@ -294,7 +295,7 @@ struct ShelfPreviewContent: View {
                 .foregroundStyle(.secondary)
         }
         .padding(16)
-        .frame(width: item.category == .image ? 480 : (item.category == .text ? 400 : 240))
+        .frame(width: item.category == .image ? 480 : 400)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
         .overlay {
             RoundedRectangle(cornerRadius: 14).strokeBorder(.white.opacity(0.15), lineWidth: 1)

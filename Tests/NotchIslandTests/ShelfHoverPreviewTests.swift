@@ -8,7 +8,7 @@ final class ShelfHoverPreviewTests: XCTestCase {
         _ = NSApplication.shared
         let panel = ShelfPreviewPanel()
         defer { panel.close() }
-        for (name, width) in [("note.txt", 400.0), ("photo.png", 480.0), ("archive.zip", 240.0)] {
+        for (name, width) in [("note.txt", 400.0), ("photo.png", 480.0), ("report.docx", 400.0), ("archive.zip", 400.0)] {
             let item = ShelfItem(fileName: name, originalPath: nil, byteSize: 100, isDirectory: false, typeIdentifier: nil)
             // 加载中和加载完成都必须有尺寸，避免出现“visible=true 但窗口为 0×0”。
             for content in [ShelfPreviewContent(item: item), ShelfPreviewContent(
