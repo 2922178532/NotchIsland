@@ -21,6 +21,7 @@ Turn your MacBook notch into a multifunctional island: **file staging**, **recov
 
 - Drop files into the notch to stage them, switch to any app, and drag them out—no desktop clutter or window juggling
 - Copied files, images, text, and links can be collected automatically as a draggable clipboard history
+- Hover over a card for about 0.3 seconds to preview text, a larger image, or an enlarged file icon
 - Recover menu bar icons hidden by the notch; click once to open their original menus
 - Hover over the notch to see system power draw, with a full power dashboard built in
 - Runs fully offline—no network requests, telemetry, or update checks
@@ -93,6 +94,7 @@ xattr -dr com.apple.quarantine "/Applications/刘海岛.app"
 | Action | Effect |
 | --- | --- |
 | Move mouse to notch | Island scales up slightly, then expands into the full panel after a short delay |
+| Hover over a card | After about 0.3 seconds, show a text preview, an image with its aspect ratio preserved, or an enlarged file icon; double-click to read long text in full |
 | Drag files near the notch | Island expands and highlights immediately; release to store |
 | Drag out from a card | Copy that item to the target app |
 | Drag the bottom handle | Take all items in the current list at once |

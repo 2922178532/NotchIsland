@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct ShelfItemView: View {
     let item: ShelfItem
     @ObservedObject var store: ShelfStore
+    let hoverPreview: ShelfHoverPreviewController
     /// 拖拽开始时通知外部，避免岛在拖到一半时收起。
     var onDragOut: () -> Void = {}
 
@@ -68,7 +69,9 @@ struct ShelfItemView: View {
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.15)) { isHovering = hovering }
         }
-        .help(helpText)
+        .background {
+            ShelfHoverPreviewAnchor(item: item, url: store.fileURL(for: item), controller: hoverPreview)
+        }
         .onDrag {
             makeDragProvider()
         } preview: {
@@ -130,13 +133,6 @@ struct ShelfItemView: View {
         .frame(width: iconSize.width - 12, height: iconSize.height - 12)
     }
 
-    private var helpText: String {
-        if item.category == .text, let textPreview, !textPreview.isEmpty {
-            return String(textPreview.prefix(200)) + "\n—\n\(item.formattedSize) · 拖出到任意应用"
-        }
-        return "\(item.fileName)\n\(item.formattedSize) · 拖出到任意应用"
-    }
-
     /// 链接只显示域名和路径开头，去掉协议前缀的噪音。
     private func linkDisplayText(_ raw: String) -> String {
         raw.replacingOccurrences(of: "https://", with: "")
@@ -177,6 +173,7 @@ struct ShelfItemView: View {
 
     /// 以「复制」语义提供文件：接收方拿到的是副本，刘海岛里的暂存文件不会被移走。
     private func makeDragProvider() -> NSItemProvider {
+        hoverPreview.suspend()
         onDragOut()
         let url = store.fileURL(for: item)
         let provider = NSItemProvider()

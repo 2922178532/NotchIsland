@@ -18,6 +18,7 @@ final class NotchWindowController: NSObject {
 
     private let panel: NotchPanel
     private let container: DropContainerView
+    private let hoverPreview = ShelfHoverPreviewController()
     private var hostingView: InteractiveHostingView<NotchRootView>?
 
     private var globalMonitor: Any?
@@ -66,6 +67,7 @@ final class NotchWindowController: NSObject {
             store: store,
             menuBarMonitor: menuBarMonitor,
             power: powerCenter,
+            hoverPreview: hoverPreview,
             onTogglePin: { [weak self] in self?.togglePin() },
             onRequestCollapse: { [weak self] in self?.collapseNow() },
             onOpenSettings: { [weak self] in self?.openSettingsMenu() },
@@ -306,6 +308,7 @@ final class NotchWindowController: NSObject {
 
     /// 不带动画地立刻回到收起状态，用于隐藏面板前的重置。
     private func forceCollapse() {
+        hoverPreview.setEnabled(false)
         cancelPendingTransitions()
         resizeWork?.cancel()
         idleTimer?.invalidate()
@@ -325,6 +328,7 @@ final class NotchWindowController: NSObject {
 
     private func transition(to newMode: NotchMode) {
         guard isEnabled, newMode != model.mode else { return }
+        hoverPreview.setEnabled(newMode == .expanded)
 
         if newMode == .collapsed { overridesFullScreenHiding = false }
         if newMode == .expanded {
@@ -397,8 +401,15 @@ final class NotchWindowController: NSObject {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { _ in
             MainActor.assumeIsolated { [weak self] in self?.evaluateMouseLocation() }
         }
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: events) { event in
-            MainActor.assumeIsolated { [weak self] in self?.evaluateMouseLocation() }
+        localMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: events.union([.leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel, .keyDown])
+        ) { event in
+            MainActor.assumeIsolated { [weak self] in
+                if [.leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel, .keyDown].contains(event.type) {
+                    self?.hoverPreview.suspend()
+                }
+                self?.evaluateMouseLocation()
+            }
             return event
         }
     }
@@ -524,6 +535,7 @@ final class NotchWindowController: NSObject {
 extension NotchWindowController: DropContainerDelegate {
     func dropContainerDidBeginDragging() {
         guard isEnabled else { return }
+        hoverPreview.suspend()
         cancelPendingTransitions()
         model.isDropTargeted = true
         transition(to: .expanded)

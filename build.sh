@@ -45,6 +45,12 @@ done
 cp LICENSE "${APP_BUNDLE}/Contents/Resources/LICENSE"
 cp THIRD-PARTY-LICENSES.md "${APP_BUNDLE}/Contents/Resources/THIRD-PARTY-LICENSES.md"
 
+# release 的调试符号保留在构建目录的 dSYM 中，不随分发包携带本机源码绝对路径。
+# 必须在最终签名前执行，避免修改 Mach-O 后留下失效签名。
+if [ "${CONFIGURATION}" = "release" ]; then
+	strip -S "${APP_BUNDLE}/Contents/MacOS/${EXECUTABLE_NAME}"
+fi
+
 echo "==> 签名"
 # 默认 ad-hoc 签名：简单可靠，代价是每次重新构建后需要在
 # 「系统设置 → 隐私与安全性」里重新授权辅助功能/屏幕录制。

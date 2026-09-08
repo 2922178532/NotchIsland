@@ -5,17 +5,19 @@ import QuickLookThumbnailing
 enum ThumbnailLoader {
     private static let cache = NSCache<NSString, NSImage>()
 
-    static func cached(for item: ShelfItem) -> NSImage? {
-        cache.object(forKey: item.storageID as NSString)
+    static func cacheKey(for item: ShelfItem, size: CGSize, scale: CGFloat) -> NSString {
+        "\(item.storageID)-\(size.width)x\(size.height)@\(scale)" as NSString
     }
 
     static func thumbnail(for item: ShelfItem, at url: URL, size: CGSize) async -> NSImage {
-        if let hit = cached(for: item) { return hit }
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let key = cacheKey(for: item, size: size, scale: scale)
+        if let hit = cache.object(forKey: key) { return hit }
 
         let request = QLThumbnailGenerator.Request(
             fileAt: url,
             size: size,
-            scale: NSScreen.main?.backingScaleFactor ?? 2,
+            scale: scale,
             representationTypes: .all
         )
 
@@ -26,7 +28,10 @@ enum ThumbnailLoader {
             image = NSWorkspace.shared.icon(forFile: url.path)
         }
 
-        cache.setObject(image, forKey: item.storageID as NSString)
+        // 大图不能复用卡片的 128pt 缩略图，否则悬浮预览会模糊。
+        cache.totalCostLimit = 48 * 1024 * 1024
+        let cost = Int(size.width * size.height * scale * scale * 4)
+        cache.setObject(image, forKey: key, cost: cost)
         return image
     }
 }

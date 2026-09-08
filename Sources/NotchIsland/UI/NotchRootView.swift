@@ -8,6 +8,7 @@ struct NotchRootView: View {
     @ObservedObject var menuBarMonitor: MenuBarItemMonitor
     @ObservedObject var preferences = Preferences.shared
     let power: PowerCenter
+    let hoverPreview: ShelfHoverPreviewController
     var onTogglePin: () -> Void
     var onRequestCollapse: () -> Void
     var onOpenSettings: () -> Void
@@ -276,7 +277,7 @@ struct NotchRootView: View {
                         importingCard
                     }
                     ForEach(filteredItems) { item in
-                        ShelfItemView(item: item, store: store) {
+                        ShelfItemView(item: item, store: store, hoverPreview: hoverPreview) {
                             model.beginDraggingOut()
                         }
                     }
