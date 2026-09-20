@@ -18,6 +18,7 @@ final class NotchWindowController: NSObject {
 
     private let panel: NotchPanel
     private let container: DropContainerView
+    private let cursorDropPrompt = CursorDropPromptController()
     private let hoverPreview = ShelfHoverPreviewController()
     private var hostingView: InteractiveHostingView<NotchRootView>?
 
@@ -26,14 +27,25 @@ final class NotchWindowController: NSObject {
     private var expandWork: DispatchWorkItem?
     private var collapseWork: DispatchWorkItem?
     private var resizeWork: DispatchWorkItem?
+    private var deferredMenuBarRefreshWork: DispatchWorkItem?
     private var idleTimer: Timer?
     private var visibilityTimer: Timer?
+    private var dragTimer: Timer?
+    private let dragPasteboard = NSPasteboard(name: .drag)
+    private var dragSession = DragIntentSession(changeCount: NSPasteboard(name: .drag).changeCount)
+    private var observedDragChangeCount = -1
+    private var dragHasSupportedContent = false
 
     /// 从收起态悬停到自动展开之间的等待时间，用户可在菜单里调整。
     private var expandDelay: TimeInterval { Preferences.shared.expandDelay }
     /// 鼠标离开后延迟收起，避免手抖导致闪烁。
     private let collapseDelay: TimeInterval = 0.28
-    private let animationDuration: TimeInterval = 0.5
+    private let animationDuration: TimeInterval = 0.4
+    private let transitionAnimation = Animation.interactiveSpring(
+        response: 0.28,
+        dampingFraction: 0.9,
+        blendDuration: 0.08
+    )
 
     /// 鼠标不在岛上时的目标状态，由用户偏好决定。
     private var restingMode: NotchMode {
@@ -61,6 +73,15 @@ final class NotchWindowController: NSObject {
 
         container.delegate = self
         container.autoresizingMask = [.width, .height]
+        cursorDropPrompt.onTargeted = { [weak self] in
+            self?.dropContainerDidBeginDragging()
+        }
+        cursorDropPrompt.onEnded = { [weak self] in
+            self?.dropContainerDidEndDragging()
+        }
+        cursorDropPrompt.onDrop = { [weak self] pasteboard in
+            self?.dropContainer(didReceive: pasteboard) ?? false
+        }
 
         let root = NotchRootView(
             model: model,
@@ -102,6 +123,8 @@ final class NotchWindowController: NSObject {
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         idleTimer?.invalidate()
         visibilityTimer?.invalidate()
+        dragTimer?.invalidate()
+        deferredMenuBarRefreshWork?.cancel()
     }
 
     // MARK: - 对外操作
@@ -109,6 +132,7 @@ final class NotchWindowController: NSObject {
     func setEnabled(_ enabled: Bool) {
         guard enabled != isEnabled else { return }
         isEnabled = enabled
+        if !enabled { cursorDropPrompt.hide() }
         updatePanelVisibility()
     }
 
@@ -161,6 +185,9 @@ final class NotchWindowController: NSObject {
 
     func collapseNow() {
         cancelPendingTransitions()
+        deferredMenuBarRefreshWork?.cancel()
+        dragSession.cancel()
+        cursorDropPrompt.hide()
         overridesFullScreenHiding = false
         model.unpin()
         model.isDropTargeted = false
@@ -169,7 +196,8 @@ final class NotchWindowController: NSObject {
 
     /// 根据偏好切换到空闲时的展示状态（收起或常显悬停）。
     func applyRestingModeIfIdle(animated: Bool = true) {
-        guard isEnabled, model.mode != .expanded, !model.isPinned, !model.isDropTargeted, !model.isDraggingOut else { return }
+        guard isEnabled, model.mode != .expanded, model.mode != .dragPrompt,
+              !model.isPinned, !model.isDropTargeted, !model.isDraggingOut else { return }
         let target = restingMode
         guard model.mode != target else { return }
 
@@ -194,6 +222,7 @@ final class NotchWindowController: NSObject {
 
     /// 屏幕分辨率或显示器组合变化后重新计算几何。
     func refreshGeometry() {
+        resizeWork?.cancel()
         model.update(metrics: Self.currentMetrics())
         panel.setFrame(model.windowFrame(for: model.mode), display: true)
     }
@@ -250,6 +279,8 @@ final class NotchWindowController: NSObject {
         } else {
             visible = !menuBarMonitor.hiddenItems.isEmpty || menuBarMonitor.isRefreshing
         }
+        // 拖入动画期间保持窗口高度稳定，扫描结果在松手后再呈现。
+        guard !model.isDropTargeted else { return }
         guard visible != model.menuBarStripVisible else { return }
 
         guard model.mode == .expanded else {
@@ -259,11 +290,11 @@ final class NotchWindowController: NSObject {
 
         resizeWork?.cancel()
         let before = model.windowFrame(for: .expanded)
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+        withAnimation(transitionAnimation) {
             model.menuBarStripVisible = visible
         }
         let after = model.windowFrame(for: .expanded)
-        panel.setFrame(before.union(after), display: true)
+        panel.setFrame(before.union(after), display: false)
 
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.model.mode == .expanded else { return }
@@ -309,8 +340,11 @@ final class NotchWindowController: NSObject {
     /// 不带动画地立刻回到收起状态，用于隐藏面板前的重置。
     private func forceCollapse() {
         hoverPreview.setEnabled(false)
+        dragSession.cancel()
+        cursorDropPrompt.hide()
         cancelPendingTransitions()
         resizeWork?.cancel()
+        deferredMenuBarRefreshWork?.cancel()
         idleTimer?.invalidate()
         idleTimer = nil
         overridesFullScreenHiding = false
@@ -326,12 +360,24 @@ final class NotchWindowController: NSObject {
 
     // MARK: - 状态切换
 
-    private func transition(to newMode: NotchMode) {
-        guard isEnabled, newMode != model.mode else { return }
+    private func transition(
+        to newMode: NotchMode,
+        prepareMenuBar: Bool = true,
+        dropTargeted: Bool? = nil
+    ) {
+        guard isEnabled else { return }
+        if newMode == model.mode {
+            if let dropTargeted, dropTargeted != model.isDropTargeted {
+                withAnimation(.easeOut(duration: 0.12)) {
+                    model.isDropTargeted = dropTargeted
+                }
+            }
+            return
+        }
         hoverPreview.setEnabled(newMode == .expanded)
 
         if newMode == .collapsed { overridesFullScreenHiding = false }
-        if newMode == .expanded {
+        if newMode == .expanded, prepareMenuBar {
             // 展开前先确定状态栏图标行是否占位，让窗口一步到位。
             menuBarMonitor.refresh(metrics: model.metrics)
             reevaluateMenuBarStrip()
@@ -341,9 +387,11 @@ final class NotchWindowController: NSObject {
         // 动画期间先把窗口扩大到「变化前后的并集」，避免内容被窗口边界裁掉。
         // 所有状态的窗口都顶部贴屏幕上沿、水平居中于刘海，因此取并集不会让内容发生位移。
         let union = model.windowFrame(for: model.mode).union(model.windowFrame(for: newMode))
-        panel.setFrame(union, display: true)
+        // 避免扩窗时同步重绘旧状态，SwiftUI 的动画首帧只绘制一次。
+        panel.setFrame(union, display: false)
 
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+        withAnimation(transitionAnimation) {
+            if let dropTargeted { model.isDropTargeted = dropTargeted }
             model.setMode(newMode)
         }
 
@@ -360,6 +408,17 @@ final class NotchWindowController: NSObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration, execute: work)
 
         updateIdleTimer()
+    }
+
+    /// 拖入展开的首帧只处理形状和接收层，菜单栏扫描延后到动画结束后。
+    private func deferMenuBarRefreshUntilExpansionSettles() {
+        deferredMenuBarRefreshWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.model.mode == .expanded else { return }
+            self.menuBarMonitor.refresh(metrics: self.model.metrics)
+        }
+        deferredMenuBarRefreshWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration, execute: work)
     }
 
     private func cancelPendingTransitions() {
@@ -388,7 +447,7 @@ final class NotchWindowController: NSObject {
             self.collapseWork = nil
             guard !self.model.isPinned, !self.model.isDropTargeted, !self.model.isDraggingOut else { return }
             guard !self.model.activeHitRect.contains(NSEvent.mouseLocation) else { return }
-            self.transition(to: self.restingMode)
+            self.transition(to: self.modeForActiveDragOrRest)
         }
         collapseWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + collapseDelay, execute: work)
@@ -397,9 +456,13 @@ final class NotchWindowController: NSObject {
     // MARK: - 鼠标跟踪
 
     private func startMonitoring() {
-        let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { _ in
-            MainActor.assumeIsolated { [weak self] in self?.evaluateMouseLocation() }
+        let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged,
+                                            .leftMouseUp, .rightMouseUp, .keyDown]
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { event in
+            MainActor.assumeIsolated { [weak self] in
+                self?.updateExternalDrag(event: event)
+                self?.evaluateMouseLocation()
+            }
         }
         localMonitor = NSEvent.addLocalMonitorForEvents(
             matching: events.union([.leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel, .keyDown])
@@ -408,14 +471,95 @@ final class NotchWindowController: NSObject {
                 if [.leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel, .keyDown].contains(event.type) {
                     self?.hoverPreview.suspend()
                 }
+                self?.updateExternalDrag(event: event)
                 self?.evaluateMouseLocation()
             }
             return event
         }
+
+        // 拖拽的跟踪循环可能吞掉全局 mouseDragged，且三指拖拽停住后不再发移动事件。
+        // common modes 下轮询拖拽粘贴板代次和按键状态，停住也能触发提示/松手回收。
+        let timer = Timer(timeInterval: 0.1, repeats: true) { _ in
+            MainActor.assumeIsolated { [weak self] in
+                guard let self else { return }
+                self.updateExternalDrag()
+                if self.dragSession.isActive || self.model.isDropTargeted || self.model.isDraggingOut {
+                    self.evaluateMouseLocation()
+                }
+            }
+        }
+        timer.tolerance = 0.02
+        RunLoop.main.add(timer, forMode: .common)
+        dragTimer = timer
+    }
+
+    private func updateExternalDrag(event: NSEvent? = nil) {
+        let count = dragPasteboard.changeCount
+        if count != observedDragChangeCount {
+            observedDragChangeCount = count
+            dragHasSupportedContent = PasteboardImporter.canImport(from: dragPasteboard)
+        }
+        let wasActive = dragSession.isActive
+        let cancelled = event?.type == .keyDown && event?.keyCode == 53
+        let ended = event.map { [.leftMouseUp, .rightMouseUp].contains($0.type) } ?? false
+        let active = dragSession.update(
+            changeCount: count,
+            hasSupportedContent: dragHasSupportedContent,
+            didEndDragging: ended || cancelled,
+            suppressed: cancelled || !isEnabled || !panel.isVisible || model.isDraggingOut,
+            now: ProcessInfo.processInfo.systemUptime
+        )
+
+        if active {
+            switch Preferences.shared.dragPromptStyle {
+            case .notch:
+                cursorDropPrompt.hide()
+                if model.mode == .collapsed || model.mode == .hovering {
+                    cancelPendingTransitions()
+                    hoverPreview.suspend()
+                    transition(to: .dragPrompt)
+                }
+            case .cursor:
+                if model.mode == .dragPrompt {
+                    cancelPendingTransitions()
+                    transition(to: restingMode)
+                }
+                cancelPendingTransitions()
+                hoverPreview.suspend()
+                cursorDropPrompt.show(near: NSEvent.mouseLocation)
+            }
+        } else if wasActive || model.mode == .dragPrompt || (ended && model.isDropTargeted) || cancelled {
+            cursorDropPrompt.hide()
+            if model.isDropTargeted {
+                finishDropTargeting()
+            } else if model.mode == .dragPrompt {
+                cancelPendingTransitions()
+                transition(to: restingMode)
+            } else if !model.isPinned {
+                scheduleCollapse()
+            }
+        }
+    }
+
+    private var modeForActiveDragOrRest: NotchMode {
+        if dragSession.isActive, Preferences.shared.dragPromptStyle == .notch {
+            return .dragPrompt
+        }
+        return restingMode
+    }
+
+    private func finishDropTargeting() {
+        cursorDropPrompt.hide()
+        guard model.isDropTargeted else { return }
+        withAnimation(.easeOut(duration: 0.12)) {
+            model.isDropTargeted = false
+        }
+        reevaluateMenuBarStrip()
+        scheduleCollapse()
     }
 
     private func evaluateMouseLocation() {
-        guard isEnabled else { return }
+        guard isEnabled, panel.isVisible else { return }
 
         // 从岛里往外拖文件时不收起；松开鼠标后才解除保护。
         if model.isDraggingOut {
@@ -436,13 +580,16 @@ final class NotchWindowController: NSObject {
                 scheduleExpand()
             case .hovering:
                 scheduleExpand()
+            case .dragPrompt:
+                if dragSession.isActive { dropContainerDidBeginDragging() }
             case .expanded:
                 break
             }
         } else {
             expandWork?.cancel()
             expandWork = nil
-            guard model.mode != restingMode, !model.isPinned, !model.isDropTargeted else { return }
+            guard model.mode != restingMode, model.mode != .dragPrompt,
+                  !model.isPinned, !model.isDropTargeted else { return }
             scheduleCollapse()
         }
     }
@@ -456,6 +603,7 @@ final class NotchWindowController: NSObject {
             && !model.isPinned
             && !model.isDropTargeted
             && !model.isDraggingOut
+            && !dragSession.isActive
         if panel.ignoresMouseEvents != shouldIgnore {
             panel.ignoresMouseEvents = shouldIgnore
         }
@@ -533,22 +681,24 @@ final class NotchWindowController: NSObject {
 // MARK: - 接收拖入的内容
 
 extension NotchWindowController: DropContainerDelegate {
+    func dropContainerContainsDraggingLocation(_ location: CGPoint) -> Bool {
+        isEnabled && panel.isVisible && model.activeHitRect.contains(location)
+    }
+
     func dropContainerDidBeginDragging() {
-        guard isEnabled else { return }
+        guard isEnabled, !model.isDropTargeted else { return }
         hoverPreview.suspend()
         cancelPendingTransitions()
-        model.isDropTargeted = true
-        transition(to: .expanded)
+        transition(to: .expanded, prepareMenuBar: false, dropTargeted: true)
+        deferMenuBarRefreshUntilExpansionSettles()
     }
 
     func dropContainerDidEndDragging() {
-        guard model.isDropTargeted else { return }
-        model.isDropTargeted = false
-        // 拖拽结束后如果鼠标已经不在岛上，正常走收起流程。
-        scheduleCollapse()
+        finishDropTargeting()
     }
 
     func dropContainer(didReceive pasteboard: NSPasteboard) -> Bool {
-        PasteboardImporter.importContents(of: pasteboard, into: store)
+        dragSession.cancel()
+        return PasteboardImporter.importContents(of: pasteboard, into: store)
     }
 }

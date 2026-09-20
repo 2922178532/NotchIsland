@@ -7,6 +7,8 @@ enum NotchMode: Equatable {
     case collapsed
     /// 鼠标靠近时的轻微放大提示。
     case hovering
+    /// 正在别处拖拽内容时，向下伸出的小接收色块。
+    case dragPrompt
     /// 展开成面板，显示刘海岛内容。
     case expanded
 }
@@ -18,6 +20,8 @@ enum NotchLayout {
     static let collapsedHotZone: CGFloat = 6
     /// 悬停态相对刘海各方向的放大量。高度要容得下一行功耗数字。
     static let hoverPadding = CGSize(width: 14, height: 22)
+    static let dragPromptWidth: CGFloat = 112
+    static let dragPromptExtension: CGFloat = 42
     /// 展开态刘海下方的内容区高度。要容得下分类筛选行加一排文件卡片。
     static let expandedContentHeight: CGFloat = 202
     /// 状态栏图标行的高度（显示被刘海挡住的图标时追加）。
@@ -97,6 +101,11 @@ final class NotchModel: ObservableObject {
             )
         case .expanded:
             return expandedIslandSize
+        case .dragPrompt:
+            return CGSize(
+                width: NotchLayout.dragPromptWidth,
+                height: metrics.notchSize.height + NotchLayout.dragPromptExtension
+            )
         }
     }
 
@@ -113,6 +122,7 @@ final class NotchModel: ObservableObject {
         switch mode {
         case .collapsed: return metrics.hasPhysicalNotch ? 10 : 8
         case .hovering: return 14
+        case .dragPrompt: return 14
         case .expanded: return NotchLayout.expandedBottomRadius
         }
     }
@@ -121,6 +131,7 @@ final class NotchModel: ObservableObject {
         switch mode {
         case .collapsed: return 0
         case .hovering: return 8
+        case .dragPrompt: return 0
         case .expanded: return NotchLayout.expandedTopRadius
         }
     }
@@ -149,6 +160,11 @@ final class NotchModel: ObservableObject {
                 width: size.width,
                 height: size.height
             )
+        case .dragPrompt:
+            let width = max(notch.width, NotchLayout.dragPromptWidth)
+            let height = notch.height + NotchLayout.dragPromptExtension
+            return CGRect(x: notch.midX - width / 2, y: notch.maxY - height,
+                          width: width, height: height)
         case .expanded:
             let island = expandedIslandSize
             let size = CGSize(

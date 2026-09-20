@@ -4,6 +4,15 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 CONFIGURATION="${1:-release}"
+# 本机可固定证书身份，避免每次更新都退回 ad-hoc、使辅助功能授权失效。
+# 文件仅保存证书名称或指纹（不含私钥），显式环境变量优先；CI 不读取个人配置。
+if [ -z "${NOTCHISLAND_SIGN_IDENTITY+x}" ] && [ -z "${CI:-}" ] && [ -f .local-signing-identity ]; then
+	NOTCHISLAND_SIGN_IDENTITY="$(cat .local-signing-identity)"
+	if [ -z "${NOTCHISLAND_SIGN_IDENTITY}" ]; then
+		echo "错误：.local-signing-identity 为空，请填写有效的代码签名证书名称或指纹。"
+		exit 1
+	fi
+fi
 # 应用包用中文名，访达里直接显示「刘海岛」——第三方应用没法像系统应用那样
 # 走 macOS 内部的本地化名称数据库，访达显示的就是包本身的文件名。
 # 可执行文件保持英文，命令行操作不受中文路径影响。

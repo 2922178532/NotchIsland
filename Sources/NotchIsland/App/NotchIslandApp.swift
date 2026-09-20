@@ -25,6 +25,8 @@ enum NotchIslandApp {
     /// 打印屏幕与刘海识别结果，便于排查岛的位置问题。
     @MainActor
     private static func printDiagnostics() {
+        print("应用路径：\(Bundle.main.bundleURL.path)")
+        print("辅助功能授权：\(MenuBarPermissions.accessibilityGranted ? "已授权" : "未授权")")
         print("屏幕数量：\(NSScreen.screens.count)")
         for (index, screen) in NSScreen.screens.enumerated() {
             let metrics = ScreenGeometry.metrics(for: screen)

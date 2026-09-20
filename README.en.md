@@ -61,6 +61,8 @@ To sign with your own developer certificate:
 NOTCHISLAND_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./build.sh
 ```
 
+For repeated local builds, save the fixed certificate name or fingerprint as one line in `.local-signing-identity` (ignored by Git). Local builds reuse it, the environment variable takes precedence, and CI ignores the file. An unavailable certificate fails the build instead of silently falling back to ad-hoc signing. Apple Development certificates are for local development; public distribution should use Developer ID Application signing and notarization.
+
 Run the unit tests (notch geometry, pasteboard parsing, shelf storage, powermetrics output parsing):
 
 ```bash
@@ -95,7 +97,7 @@ xattr -dr com.apple.quarantine "/Applications/刘海岛.app"
 | --- | --- |
 | Move mouse to notch | Island scales up slightly, then expands into the full panel after a short delay |
 | Hover over a card | After about 0.3 seconds, show text, an image with its aspect ratio preserved, or a document thumbnail; unsupported files show their icon, and double-clicking opens the full contents |
-| Drag files near the notch | Island expands and highlights immediately; release to store |
+| Pick up text, images, or files and keep dragging for about 0.35 seconds | Depending on the setting, a target extends below the notch or appears beside the pointer; enter it and release to store |
 | Drag out from a card | Copy that item to the target app |
 | Drag the bottom handle | Take all items in the current list at once |
 | Double-click a card | Open with the default app |
@@ -104,6 +106,8 @@ xattr -dr com.apple.quarantine "/Applications/刘海岛.app"
 | `⌃⌥C` | Save clipboard contents to NotchIsland |
 
 Besides files, images dragged from the browser, selected text, and web links are stored as appropriate file types. Drag-out always uses **copy** semantics—the target app gets a copy; items remain in NotchIsland.
+
+"Below-notch card" extends 42 points below the notch. "Floating card beside pointer" stays near the drag's starting point, so it takes only a short movement to store the item. Switch between them under "Drop target location" in the menu. Selecting or holding content alone does not trigger either target: an actual drag must begin. The target retracts on release and stays hidden when dragging items out of the island.
 
 <details>
 <summary><b>More UI details</b></summary>
@@ -136,6 +140,7 @@ Click the tray icon (or the gear on the island) to open settings:
 - **Auto cleanup**: Keep forever / 1 / 3 / 7 / 30 days (default 7). Checked at launch and hourly thereafter.
 - **Hover expand delay**: Instant / 0.1 / 0.25 / 0.5 / 1 s (default 0.25 s).
 - **Idle appearance**: What the island looks like when the mouse is away—"Collapsed (native notch)" or "Hovering (always-on power draw)", default collapsed. Hovering keeps the island slightly enlarged with live power draw always visible, at the cost of a permanently larger notch area.
+- **Drop target location**: Choose a card below the notch or a floating card beside the pointer. The floating card stays by the drag's starting point instead of chasing the pointer, so it remains reachable.
 - **Auto-collect clipboard contents**: Off by default. See [Data & privacy](#data--privacy) below.
 - **Drop sound**: Nine system sounds (including off); default "Tink"; selecting one plays a preview.
 - **Show icons hidden by the notch**: Master toggle for menu bar icon recovery (on by default).

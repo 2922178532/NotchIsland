@@ -22,6 +22,19 @@ enum IdleRestMode: String, CaseIterable {
     }
 }
 
+/// 检测到外部拖拽后，接收入口出现的位置。
+enum DragPromptStyle: String, CaseIterable {
+    case notch
+    case cursor
+
+    var title: String {
+        switch self {
+        case .notch: return "刘海下拉色卡"
+        case .cursor: return "光标旁悬浮卡"
+        }
+    }
+}
+
 /// 用户偏好，存放在 `UserDefaults` 中。
 @MainActor
 final class Preferences: ObservableObject {
@@ -37,6 +50,7 @@ final class Preferences: ObservableObject {
         static let autoCollectClipboard = "NotchIsland.autoCollectClipboard"
         static let hiddenMenuBarApps = "NotchIsland.hiddenMenuBarApps"
         static let importSoundName = "NotchIsland.importSoundName"
+        static let dragPromptStyle = "NotchIsland.dragPromptStyle"
     }
 
     /// 暂存内容保留的天数，0 表示不自动清理。
@@ -85,6 +99,11 @@ final class Preferences: ObservableObject {
         didSet { UserDefaults.standard.set(importSoundName, forKey: Key.importSoundName) }
     }
 
+    /// 外部拖拽时显示刘海下拉色卡，或在当前光标旁提供更近的接收入口。
+    @Published var dragPromptStyle: DragPromptStyle {
+        didSet { UserDefaults.standard.set(dragPromptStyle.rawValue, forKey: Key.dragPromptStyle) }
+    }
+
     /// 可供选择的存入提示音。
     static let importSoundOptions: [(name: String, title: String)] = [
         ("", "关闭"),
@@ -127,6 +146,7 @@ final class Preferences: ObservableObject {
             Key.idleRestMode: IdleRestMode.collapsed.rawValue,
             Key.autoCollectClipboard: false,
             Key.importSoundName: "Tink",
+            Key.dragPromptStyle: DragPromptStyle.notch.rawValue,
         ])
         expirationDays = defaults.integer(forKey: Key.expirationDays)
         hideOnFullScreen = defaults.bool(forKey: Key.hideOnFullScreen)
@@ -138,5 +158,8 @@ final class Preferences: ObservableObject {
         autoCollectClipboard = defaults.bool(forKey: Key.autoCollectClipboard)
         hiddenMenuBarApps = defaults.stringArray(forKey: Key.hiddenMenuBarApps) ?? []
         importSoundName = defaults.string(forKey: Key.importSoundName) ?? "Tink"
+        dragPromptStyle = DragPromptStyle(
+            rawValue: defaults.string(forKey: Key.dragPromptStyle) ?? ""
+        ) ?? .notch
     }
 }

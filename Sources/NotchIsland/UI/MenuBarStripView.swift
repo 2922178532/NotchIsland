@@ -70,7 +70,7 @@ struct MenuBarStripView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.6))
                     .lineLimit(2)
-                Text("若设置里已开启仍提示授权，请先关闭再重新打开「刘海岛」，然后重启应用（更新后签名会变）")
+                Text("若开关已开启仍未授权，请退出应用，在辅助功能列表中移除旧条目，再添加「应用程序」里的刘海岛并开启，最后重新启动。")
                     .font(.system(size: 9))
                     .foregroundStyle(.white.opacity(0.38))
                     .lineLimit(3)

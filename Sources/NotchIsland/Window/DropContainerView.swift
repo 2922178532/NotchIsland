@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 @MainActor
 protocol DropContainerDelegate: AnyObject {
+    func dropContainerContainsDraggingLocation(_ location: CGPoint) -> Bool
     func dropContainerDidBeginDragging()
     func dropContainerDidEndDragging()
     /// 返回是否成功接收了内容。
@@ -31,13 +32,11 @@ final class DropContainerView: NSView {
     // MARK: - NSDraggingDestination
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard canAccept(sender.draggingPasteboard) else { return [] }
-        delegate?.dropContainerDidBeginDragging()
-        return .copy
+        updateDragging(sender)
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        canAccept(sender.draggingPasteboard) ? .copy : []
+        updateDragging(sender)
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
@@ -49,17 +48,33 @@ final class DropContainerView: NSView {
     }
 
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        canAccept(sender.draggingPasteboard)
+        canAccept(sender)
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard canAccept(sender) else { return false }
         let accepted = delegate?.dropContainer(didReceive: sender.draggingPasteboard) ?? false
         delegate?.dropContainerDidEndDragging()
         return accepted
     }
 
-    private func canAccept(_ pasteboard: NSPasteboard) -> Bool {
-        PasteboardImporter.canImport(from: pasteboard)
+    private func updateDragging(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard canAccept(sender) else {
+            delegate?.dropContainerDidEndDragging()
+            return []
+        }
+        // 透明留白进入实体色块时不一定再收到 draggingEntered，需要持续更新命中状态。
+        delegate?.dropContainerDidBeginDragging()
+        return .copy
+    }
+
+    private func canAccept(_ sender: NSDraggingInfo) -> Bool {
+        guard let window,
+              delegate?.dropContainerContainsDraggingLocation(
+                window.convertPoint(toScreen: sender.draggingLocation)
+              ) == true else { return false }
+        return sender.draggingSourceOperationMask.contains(.copy)
+            && PasteboardImporter.canImport(from: sender.draggingPasteboard)
     }
 }
 

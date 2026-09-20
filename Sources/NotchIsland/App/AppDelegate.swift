@@ -128,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case restoreExcludedIcons = 11
         case importSound = 12
         case idleRestModeMenu = 13
+        case dragPromptStyleMenu = 14
     }
 
     private func buildMenu() -> NSMenu {
@@ -166,6 +167,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         idleRest.tag = MenuTag.idleRestModeMenu.rawValue
         idleRest.submenu = buildIdleRestModeMenu()
         menu.addItem(idleRest)
+
+        let dragPrompt = NSMenuItem(title: "拖入接收入口", action: nil, keyEquivalent: "")
+        dragPrompt.tag = MenuTag.dragPromptStyleMenu.rawValue
+        dragPrompt.submenu = buildDragPromptStyleMenu()
+        menu.addItem(dragPrompt)
 
         let autoCollect = NSMenuItem(title: "自动收存剪贴板内容", action: #selector(toggleAutoCollectClipboard), keyEquivalent: "")
         autoCollect.tag = MenuTag.autoCollectClipboard.rawValue
@@ -259,6 +265,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return submenu
     }
 
+    private func buildDragPromptStyleMenu() -> NSMenu {
+        let submenu = NSMenu()
+        for style in DragPromptStyle.allCases {
+            let item = NSMenuItem(
+                title: style.title,
+                action: #selector(selectDragPromptStyle(_:)),
+                keyEquivalent: ""
+            )
+            item.representedObject = style.rawValue
+            item.target = self
+            submenu.addItem(item)
+        }
+        return submenu
+    }
+
     // MARK: - 菜单动作
 
     @objc private func expandShelf() {
@@ -332,6 +353,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let mode = IdleRestMode(rawValue: raw) else { return }
         Preferences.shared.idleRestMode = mode
         controller?.applyRestingModeIfIdle()
+    }
+
+    @objc private func selectDragPromptStyle(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let style = DragPromptStyle(rawValue: raw) else { return }
+        Preferences.shared.dragPromptStyle = style
     }
 
     @objc private func toggleLaunchAtLogin() {
@@ -447,6 +474,12 @@ extension AppDelegate: NSMenuDelegate {
         }
         if let submenu = menu.item(withTag: MenuTag.idleRestModeMenu.rawValue)?.submenu {
             let current = Preferences.shared.idleRestMode.rawValue
+            for option in submenu.items {
+                option.state = (option.representedObject as? String) == current ? .on : .off
+            }
+        }
+        if let submenu = menu.item(withTag: MenuTag.dragPromptStyleMenu.rawValue)?.submenu {
+            let current = Preferences.shared.dragPromptStyle.rawValue
             for option in submenu.items {
                 option.state = (option.representedObject as? String) == current ? .on : .off
             }

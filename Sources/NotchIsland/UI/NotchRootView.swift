@@ -60,6 +60,15 @@ struct NotchRootView: View {
 
     var body: some View {
         island
+            .background(alignment: .top) {
+                // 提示色块比刘海窄，无刘海机型也保留完整的黑色岛顶。
+                if model.mode == .dragPrompt {
+                    NotchShape(bottomCornerRadius: 10, topCornerRadius: 0)
+                        .fill(.black)
+                        .frame(width: model.metrics.notchSize.width,
+                               height: model.metrics.notchSize.height)
+                }
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
@@ -85,6 +94,8 @@ struct NotchRootView: View {
         switch model.mode {
         case .collapsed, .hovering:
             compactIndicator
+        case .dragPrompt:
+            dragPrompt
         case .expanded:
             expandedContent
                 .transition(.opacity)
@@ -119,9 +130,31 @@ struct NotchRootView: View {
                         .padding(.bottom, 2)
                 }
             }
-        case .expanded:
+        case .expanded, .dragPrompt:
             EmptyView()
         }
+    }
+
+    private var dragPrompt: some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: model.metrics.notchSize.height)
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.to.line.compact")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("拖到这里")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                LinearGradient(
+                    colors: [Color(red: 0.32, green: 0.55, blue: 0.98),
+                             Color(red: 0.62, green: 0.40, blue: 0.94)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+            }
+        }
+        .accessibilityLabel("拖入文字、图片或文件，展开刘海岛")
     }
 
     /// 悬停时露出的一行：实时功耗 + 刘海岛文件数。
@@ -154,7 +187,7 @@ struct NotchRootView: View {
         VStack(spacing: 0) {
             header
                 .frame(height: model.metrics.notchSize.height)
-            if model.menuBarStripVisible {
+            if model.menuBarStripVisible && !model.isDropTargeted {
                 MenuBarStripView(
                     monitor: menuBarMonitor,
                     onActivate: onActivateMenuBarItem,
@@ -229,16 +262,14 @@ struct NotchRootView: View {
 
     @ViewBuilder
     private var panelBody: some View {
-        ZStack {
-            if store.isEmpty, store.importingCount == 0 {
+        Group {
+            // 拖入展开时只创建轻量接收层，避免文件卡片与缩略图在首帧同时布局。
+            if model.isDropTargeted {
+                dropOverlay.transition(.opacity)
+            } else if store.isEmpty, store.importingCount == 0 {
                 emptyState
             } else {
                 fileArea
-            }
-
-            if model.isDropTargeted {
-                dropOverlay
-                    .transition(.opacity)
             }
         }
         .padding(.horizontal, 14)
