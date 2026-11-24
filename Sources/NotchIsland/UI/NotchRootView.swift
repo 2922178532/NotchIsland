@@ -669,7 +669,7 @@ private struct IslandButton: View {
     }
 }
 
-/// 展开时仅轮廓使用系统玻璃，收起时用黑色衔接物理刘海。
+/// 展开时由窗后材质柔化背景，系统玻璃提供边缘折射。
 struct IslandBackground: View {
     enum Material: Equatable {
         case black
@@ -704,26 +704,33 @@ struct IslandBackground: View {
             topCornerRadius: shape.topCornerRadius,
             earsInside: true
         )
-        return Color.clear
-            .frame(width: size.width + shape.topCornerRadius * 2, height: size.height)
-            .glassEffect(glass, in: glassShape)
-            .mask {
-                if material == .glass {
-                    // 保留系统材质在轮廓内侧的折射，让中央直接透出窗口后方的像素。
-                    glassShape.stroke(lineWidth: 10)
-                } else {
-                    Rectangle()
-                }
+        return ZStack {
+            if material == .glass {
+                IslandBackdrop()
+                    .clipShape(glassShape)
+                glassShape.fill(Color(white: 0.22).opacity(0.20))
+                Color.clear
+                    .glassEffect(.clear, in: glassShape)
+                    .mask { glassShape.stroke(lineWidth: 10) }
+            } else {
+                Color.clear
+                    .glassEffect(.clear.tint(IslandStyle.brandBlue.opacity(0.18)), in: glassShape)
             }
+        }
+        .frame(width: size.width + shape.topCornerRadius * 2, height: size.height)
+    }
+}
+
+/// 固定采样浮窗后方，并保留部分原始背景细节。
+private struct IslandBackdrop: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.blendingMode = .behindWindow
+        view.material = .hudWindow
+        view.state = .active
+        view.alphaValue = 0.35
+        return view
     }
 
-    @available(macOS 26.0, *)
-    private var glass: Glass {
-        switch material {
-        case .tintedGlass:
-            .clear.tint(IslandStyle.brandBlue.opacity(0.18))
-        case .black, .glass:
-            .clear
-        }
-    }
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }

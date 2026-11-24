@@ -13,6 +13,7 @@ final class NotchPanel: NSPanel {
             defer: false
         )
 
+        becomesKeyOnlyIfNeeded = true
         isFloatingPanel = true
         isReleasedWhenClosed = false
         level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
@@ -29,6 +30,6 @@ final class NotchPanel: NSPanel {
         isExcludedFromWindowsMenu = true
     }
 
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 }

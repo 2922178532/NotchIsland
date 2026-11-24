@@ -33,6 +33,12 @@ enum IslandStyle {
         return false
     }
 
+    /// 让浮窗保留整面的背景折射，同时压低窗后内容的对比度。
+    @available(macOS 26.0, *)
+    static var floatingGlass: Glass {
+        .clear.tint(Color(white: 0.20).opacity(0.30))
+    }
+
     /// 卡片、标签这类小块的底色。透明玻璃背后可能是亮色网页，白色叠加会看不见，
     /// 所以玻璃下改用半透明深色，让每块内容自带对比度。
     /// 卡片底板里缩略图那一格的底色：底板已经是深色，这里只要略微提亮。

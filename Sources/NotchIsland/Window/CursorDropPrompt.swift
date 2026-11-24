@@ -42,8 +42,7 @@ private struct CursorDropPromptView: View {
     private var cardBackground: some View {
         if #available(macOS 26.0, *) {
             Color.clear
-                .glassEffect(.clear, in: cardShape)
-                .mask { cardShape.strokeBorder(lineWidth: 5) }
+                .glassEffect(IslandStyle.floatingGlass, in: cardShape)
                 .overlay {
                     cardShape.strokeBorder(.white.opacity(state.isTargeted ? 0.6 : 0), lineWidth: 1)
                 }
