@@ -18,7 +18,7 @@ private struct CursorDropPromptView: View {
                     .font(.system(size: 12, weight: .semibold))
                 Text("存入刘海岛")
                     .font(.system(size: 9, weight: .medium))
-                    .opacity(0.72)
+                    .opacity(0.9)
             }
         }
         .foregroundStyle(.white)
@@ -32,7 +32,6 @@ private struct CursorDropPromptView: View {
         .animation(IslandStyle.reduceMotion ? .easeOut(duration: 0.12)
                    : .spring(response: 0.22, dampingFraction: 0.76), value: state.isTargeted)
         .accessibilityLabel(state.isTargeted ? "松开即可存入刘海岛" : "拖到这里存入刘海岛")
-        .environment(\.colorScheme, .dark)
     }
 
     private var cardShape: RoundedRectangle {
@@ -42,13 +41,9 @@ private struct CursorDropPromptView: View {
     @ViewBuilder
     private var cardBackground: some View {
         if #available(macOS 26.0, *) {
-            // 液态玻璃带品牌色调，进入可放下范围时色调加深、边缘提亮。
-            // 和主面板一样用透明款，只带一点品牌色；进入可放下范围时色调加深、边缘提亮。
             Color.clear
-                .glassEffect(
-                    .clear.tint(IslandStyle.brandBlue.opacity(state.isTargeted ? 0.32 : 0.14)),
-                    in: cardShape
-                )
+                .glassEffect(.clear, in: cardShape)
+                .mask { cardShape.strokeBorder(lineWidth: 5) }
                 .overlay {
                     cardShape.strokeBorder(.white.opacity(state.isTargeted ? 0.6 : 0), lineWidth: 1)
                 }

@@ -93,8 +93,6 @@ struct NotchRootView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            // 岛的文字和图标都是按深色底设计的，玻璃也固定用深色外观，浅色壁纸上才看得清。
-            .environment(\.colorScheme, .dark)
             .onChange(of: store.importSerial) { celebrateImport() }
             .onChange(of: model.mode) {
                 // 每次重新展开都从第一页开始，也放弃没确认的清空。
@@ -134,11 +132,11 @@ struct NotchRootView: View {
             IslandBackground(
                 shape: shape,
                 size: islandSize,
-                material: backgroundMaterial,
-                headerHeight: model.metrics.notchSize.height
+                material: backgroundMaterial
             )
 
             content
+                .environment(\.colorScheme, .dark)
                 .clipShape(shape)
         }
         .frame(width: islandSize.width, height: islandSize.height)
@@ -285,11 +283,12 @@ struct NotchRootView: View {
                     Text("\(store.items.count) 项 · \(ByteCountFormatter.string(fromByteCount: store.totalSize, countStyle: .file))")
                         .font(.system(size: 10))
                         .monospacedDigit()
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(.white.opacity(0.88))
                         .lineLimit(1)
                         .transition(.opacity)
                 }
             }
+            .glassLegible()
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 18)
 
@@ -560,7 +559,8 @@ struct NotchRootView: View {
             Text("拖住这里可一次取走全部 \(items.count) 项\(label)")
                 .font(.system(size: 10, weight: .medium))
         }
-        .foregroundStyle(.white.opacity(0.6))
+        .foregroundStyle(.white.opacity(0.94))
+        .glassLegible()
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
         .background(
@@ -623,6 +623,7 @@ private struct PowerChipButton: View {
                     // 空间不足时 SwiftUI 会优先把文字压缩到零宽，必须固定尺寸。
                     .fixedSize()
             }
+            .glassLegible()
             .padding(.horizontal, 8)
             .frame(height: 22)
             .background(
@@ -652,6 +653,7 @@ private struct IslandButton: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(isActive ? IslandStyle.brandBlue : .white.opacity(isHovering ? 1 : 0.7))
                 .contentTransition(.symbolEffect(.replace))
+                .glassLegible()
                 .frame(width: 22, height: 22)
                 .background(
                     Circle().fill(isActive
@@ -667,8 +669,7 @@ private struct IslandButton: View {
     }
 }
 
-/// 岛的底板：纯黑或液态玻璃。两层同时存在、靠不透明度交叉过渡，
-/// 所以从刘海展开成面板时，黑色会在弹簧动画里逐渐化成玻璃。
+/// 展开时仅轮廓使用系统玻璃，收起时用黑色衔接物理刘海。
 struct IslandBackground: View {
     enum Material: Equatable {
         case black
@@ -679,29 +680,19 @@ struct IslandBackground: View {
     let shape: NotchShape
     let size: CGSize
     let material: Material
-    /// 顶栏高度（等于菜单栏高度）。这一条压在菜单栏上方，背后的菜单栏图标会透出来，
-    /// 和岛上的按钮叠在一起，所以只在这里加一道渐隐的暗色。
-    var headerHeight: CGFloat = 0
-
-    private var usesGlass: Bool {
-        IslandStyle.supportsGlass && material != .black
-    }
-
     var body: some View {
-        ZStack(alignment: .top) {
-            if IslandStyle.supportsGlass, #available(macOS 26.0, *) {
-                glassLayer
-                    .opacity(usesGlass ? 1 : 0)
-            }
-            shape
-                .fill(Color.black)
-                .opacity(usesGlass ? 0 : 1)
+        if #available(macOS 26.0, *), material != .black {
+            glassLayer
+                .allowsHitTesting(false)
+        } else {
+            shape.fill(.black)
                 .overlay {
-                    shape.stroke(Color.white.opacity(material == .glass && !usesGlass ? 0.1 : 0), lineWidth: 0.5)
+                    if material == .glass {
+                        shape.stroke(.white.opacity(0.1), lineWidth: 0.5)
+                    }
                 }
+                .shadow(color: .black.opacity(material == .black ? 0 : 0.5), radius: 18, y: 10)
         }
-        .shadow(color: .black.opacity(material == .black || usesGlass ? 0 : 0.5),
-                radius: 18, y: 10)
     }
 
     /// 玻璃只在视图范围内渲染，所以把视图左右各加宽一个反向圆角，
@@ -716,19 +707,12 @@ struct IslandBackground: View {
         return Color.clear
             .frame(width: size.width + shape.topCornerRadius * 2, height: size.height)
             .glassEffect(glass, in: glassShape)
-            .overlay(alignment: .top) {
-                if material == .glass, headerHeight > 0 {
-                    glassShape
-                        .fill(LinearGradient(
-                            stops: [
-                                .init(color: .black.opacity(0.7), location: 0),
-                                .init(color: .black.opacity(0.55), location: headerHeight / max(size.height, 1)),
-                                .init(color: .black.opacity(0), location: (headerHeight + 18) / max(size.height, 1)),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ))
-                        .allowsHitTesting(false)
+            .mask {
+                if material == .glass {
+                    // 保留系统材质在轮廓内侧的折射，让中央直接透出窗口后方的像素。
+                    glassShape.stroke(lineWidth: 10)
+                } else {
+                    Rectangle()
                 }
             }
     }
@@ -739,7 +723,6 @@ struct IslandBackground: View {
         case .tintedGlass:
             .clear.tint(IslandStyle.brandBlue.opacity(0.18))
         case .black, .glass:
-            // 透明款，背后内容清楚可见、边缘有折射；顶栏的可读性靠上面的渐隐暗色保证。
             .clear
         }
     }

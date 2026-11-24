@@ -44,7 +44,7 @@ enum IslandStyle {
 
     static func chipFill(hovering: Bool = false) -> Color {
         supportsGlass
-            ? .black.opacity(hovering ? 0.6 : 0.48)
+            ? .black.opacity(hovering ? 0.24 : 0.10)
             : .white.opacity(hovering ? surfaceHover : surface)
     }
 
@@ -106,7 +106,7 @@ extension View {
     }
 }
 
-/// 透明玻璃上每张卡片的深色底板：缩略图和文字放在同一块上，背后再花也看得清。
+/// 用淡底色标记卡片范围，悬停时加深。
 /// 没有玻璃的系统上岛本身就是黑底，不需要底板。
 struct CardTile: ViewModifier {
     var hovering = false
@@ -118,7 +118,7 @@ struct CardTile: ViewModifier {
                 .padding(.vertical, 2)
                 .background {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.black.opacity(hovering ? 0.58 : 0.46))
+                        .fill(Color.black.opacity(hovering ? 0.15 : 0.035))
                         .overlay {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .strokeBorder(.white.opacity(hovering ? 0.16 : 0.07), lineWidth: 0.5)
@@ -137,6 +137,6 @@ extension View {
 
     /// 透明玻璃上的文字加一圈很淡的阴影，背后是亮色内容时也能读出来。
     func glassLegible() -> some View {
-        shadow(color: .black.opacity(IslandStyle.supportsGlass ? 0.55 : 0), radius: 1.5, y: 0.5)
+        shadow(color: .black.opacity(IslandStyle.supportsGlass ? 0.85 : 0), radius: 1.2, y: 0.7)
     }
 }
