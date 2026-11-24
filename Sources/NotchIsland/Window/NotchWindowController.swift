@@ -40,12 +40,11 @@ final class NotchWindowController: NSObject {
     private var expandDelay: TimeInterval { Preferences.shared.expandDelay }
     /// 鼠标离开后延迟收起，避免手抖导致闪烁。
     private let collapseDelay: TimeInterval = 0.28
-    private let animationDuration: TimeInterval = 0.4
-    private let transitionAnimation = Animation.interactiveSpring(
-        response: 0.28,
-        dampingFraction: 0.9,
-        blendDuration: 0.08
-    )
+    /// 动画结束后才把窗口缩回目标尺寸。弹簧（response 0.28、阻尼 0.9）在 0.34 秒时
+    /// 剩余位移已不到千分之二，再等更久只会让放大的窗口多挡一会儿屏幕顶部。
+    private let animationDuration: TimeInterval = 0.34
+    /// 每次读取都重新判断「减弱动态效果」，用户改了系统设置立刻生效。
+    private var transitionAnimation: Animation { IslandStyle.modeTransition }
 
     /// 鼠标不在岛上时的目标状态，由用户偏好决定。
     private var restingMode: NotchMode {

@@ -18,6 +18,19 @@ struct NotchRootView: View {
 
     /// 当前选中的分类筛选，nil 表示全部。
     @State private var filter: ShelfCategory?
+    /// 刚存入新内容时为真，刘海下沿的提示条短暂变宽变亮。
+    @State private var celebrating = false
+    @State private var celebrateTask: Task<Void, Never>?
+    /// 展开时顶栏里短暂替换「n 项 · 大小」的操作反馈文案。
+    @State private var toastText: String?
+    @State private var toastTask: Task<Void, Never>?
+    /// 点了一次「清空」、正在等用户再点一次确认。
+    @State private var confirmingClear = false
+    @State private var confirmClearTask: Task<Void, Never>?
+    /// 卡片列表当前加载到第几项。每次滚到末尾再加载一页，避免一次建出几百张卡片。
+    @State private var loadedCount = Self.pageSize
+
+    static let pageSize = 30
 
     private var isExpanded: Bool { model.mode == .expanded }
 
@@ -43,12 +56,22 @@ struct NotchRootView: View {
     /// 宽度要小于刘海，这样探出的部分是一个独立的小圆角块，也不会遮住菜单栏。
     /// 用户可以在菜单里选择隐藏它，让刘海保持原生外观（交互不受影响）。
     private var showsCollapsedTongue: Bool {
-        model.mode == .collapsed && !store.isEmpty && !preferences.hideIdleIndicator
+        // 隐藏了常驻提示的用户，存入成功时也短暂露一下，否则静默收存毫无反馈。
+        model.mode == .collapsed && !store.isEmpty && (!preferences.hideIdleIndicator || celebrating)
     }
 
     private var islandSize: CGSize {
         guard showsCollapsedTongue else { return model.islandSize }
         return CGSize(width: 96, height: model.metrics.notchSize.height + 5)
+    }
+
+    /// 收起和悬停时保持纯黑，与物理刘海融为一体；展开和拖入提示换成液态玻璃。
+    private var backgroundMaterial: IslandBackground.Material {
+        switch model.mode {
+        case .collapsed, .hovering: .black
+        case .expanded: .glass
+        case .dragPrompt: .tintedGlass
+        }
     }
 
     private var shape: NotchShape {
@@ -70,23 +93,56 @@ struct NotchRootView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // 岛的文字和图标都是按深色底设计的，玻璃也固定用深色外观，浅色壁纸上才看得清。
+            .environment(\.colorScheme, .dark)
+            .onChange(of: store.importSerial) { celebrateImport() }
+            .onChange(of: model.mode) {
+                // 每次重新展开都从第一页开始，也放弃没确认的清空。
+                guard model.mode != .expanded else { return }
+                loadedCount = Self.pageSize
+                cancelClearConfirmation()
+            }
+            .onChange(of: store.messageSerial) { showToast(store.lastMessage) }
+    }
+
+    private func celebrateImport() {
+        celebrateTask?.cancel()
+        withAnimation(IslandStyle.reduceMotion ? .easeOut(duration: 0.15)
+                      : .spring(response: 0.3, dampingFraction: 0.55)) {
+            celebrating = true
+        }
+        celebrateTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.2))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.35)) { celebrating = false }
+        }
+    }
+
+    private func showToast(_ text: String?) {
+        guard let text, isExpanded else { return }
+        toastTask?.cancel()
+        withAnimation(.easeOut(duration: 0.15)) { toastText = text }
+        toastTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.6))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.25)) { toastText = nil }
+        }
     }
 
     private var island: some View {
         ZStack(alignment: .top) {
-            shape
-                .fill(Color.black)
-                .overlay {
-                    shape
-                        .stroke(Color.white.opacity(isExpanded ? 0.1 : 0), lineWidth: 0.5)
-                }
-                .shadow(color: .black.opacity(isExpanded ? 0.5 : 0), radius: 18, y: 10)
+            IslandBackground(
+                shape: shape,
+                size: islandSize,
+                material: backgroundMaterial,
+                headerHeight: model.metrics.notchSize.height
+            )
 
             content
                 .clipShape(shape)
         }
         .frame(width: islandSize.width, height: islandSize.height)
-        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: store.items.count)
+        .animation(IslandStyle.contentSpring, value: store.items.map(\.id))
     }
 
     @ViewBuilder
@@ -98,7 +154,9 @@ struct NotchRootView: View {
             dragPrompt
         case .expanded:
             expandedContent
-                .transition(.opacity)
+                // 进场由各区块的错开动画负责，这里只管退场时快速淡出。
+                .transition(.asymmetric(insertion: .identity,
+                                        removal: .opacity.animation(.easeOut(duration: 0.12))))
         }
     }
 
@@ -119,14 +177,10 @@ struct NotchRootView: View {
                 VStack {
                     Spacer(minLength: 0)
                     Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(red: 0.35, green: 0.6, blue: 1.0), Color(red: 0.68, green: 0.45, blue: 1.0)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: 46, height: 3)
+                        .fill(IslandStyle.brandGradient())
+                        .frame(width: celebrating ? 70 : 46, height: 3)
+                        .brightness(celebrating ? 0.25 : 0)
+                        .shadow(color: IslandStyle.brandBlue.opacity(celebrating ? 0.9 : 0), radius: 4)
                         .padding(.bottom, 2)
                 }
             }
@@ -141,17 +195,17 @@ struct NotchRootView: View {
             HStack(spacing: 6) {
                 Image(systemName: "arrow.down.to.line.compact")
                     .font(.system(size: 13, weight: .semibold))
+                    .symbolEffect(.pulse, options: .repeating, isActive: !IslandStyle.reduceMotion)
                 Text("拖到这里")
                     .font(.system(size: 11, weight: .medium))
             }
             .foregroundStyle(.white)
+            .glassLegible()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
-                LinearGradient(
-                    colors: [Color(red: 0.32, green: 0.55, blue: 0.98),
-                             Color(red: 0.62, green: 0.40, blue: 0.94)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                )
+                // 有液态玻璃时只叠一层淡淡的品牌渐变，让背后的桌面透出来。
+                IslandStyle.brandGradient(startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .opacity(IslandStyle.supportsGlass ? 0.12 : 1)
             }
         }
         .accessibilityLabel("拖入文字、图片或文件，展开刘海岛")
@@ -166,6 +220,8 @@ struct NotchRootView: View {
             Text(power.wattsText ?? "…")
                 .font(.system(size: 11, weight: .semibold))
                 .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(.snappy, value: power.wattsText)
                 .foregroundStyle(.white.opacity(0.92))
             if !store.isEmpty {
                 Text("·")
@@ -176,6 +232,7 @@ struct NotchRootView: View {
                 Text("\(store.items.count)")
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
                     .foregroundStyle(.white.opacity(0.75))
             }
         }
@@ -187,19 +244,24 @@ struct NotchRootView: View {
         VStack(spacing: 0) {
             header
                 .frame(height: model.metrics.notchSize.height)
+                .staggeredAppear(0)
             if model.menuBarStripVisible && !model.isDropTargeted {
-                MenuBarStripView(
-                    monitor: menuBarMonitor,
-                    onActivate: onActivateMenuBarItem,
-                    onRequestAccessibility: onRequestAccessibility
-                )
-                Rectangle()
-                    .fill(.white.opacity(0.07))
-                    .frame(height: 1)
-                    .padding(.horizontal, 14)
+                VStack(spacing: 0) {
+                    MenuBarStripView(
+                        monitor: menuBarMonitor,
+                        onActivate: onActivateMenuBarItem,
+                        onRequestAccessibility: onRequestAccessibility
+                    )
+                    Rectangle()
+                        .fill(.white.opacity(0.07))
+                        .frame(height: 1)
+                        .padding(.horizontal, 14)
+                }
+                .staggeredAppear(1)
             }
             panelBody
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .staggeredAppear(2)
         }
     }
 
@@ -209,20 +271,23 @@ struct NotchRootView: View {
             HStack(spacing: 6) {
                 Image(systemName: "tray.full.fill")
                     .font(.system(size: 11))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color(red: 0.4, green: 0.65, blue: 1.0), Color(red: 0.7, green: 0.45, blue: 1.0)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    .foregroundStyle(IslandStyle.brandGradient(startPoint: .top, endPoint: .bottom))
                 Text("刘海岛")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.92))
-                if !store.isEmpty {
+                if let toastText {
+                    Label(toastText, systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .lineLimit(1)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                } else if !store.isEmpty {
                     Text("\(store.items.count) 项 · \(ByteCountFormatter.string(fromByteCount: store.totalSize, countStyle: .file))")
                         .font(.system(size: 10))
+                        .monospacedDigit()
                         .foregroundStyle(.white.opacity(0.45))
+                        .lineLimit(1)
+                        .transition(.opacity)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -237,9 +302,7 @@ struct NotchRootView: View {
                     IslandButton(systemName: "doc.on.doc", help: "复制全部到剪贴板") {
                         store.copyAllToPasteboard()
                     }
-                    IslandButton(systemName: "trash", help: "清空全部内容") {
-                        store.removeAll()
-                    }
+                    clearButton
                 }
                 IslandButton(
                     systemName: model.isPinned ? "pin.fill" : "pin",
@@ -257,6 +320,55 @@ struct NotchRootView: View {
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.trailing, 18)
+        }
+    }
+
+    /// 清空按钮：开着二次确认时，第一次点击原地变成红色的「确认清空」，3 秒内再点才真正删除。
+    @ViewBuilder
+    private var clearButton: some View {
+        if confirmingClear {
+            Button {
+                cancelClearConfirmation()
+                withAnimation(IslandStyle.contentSpring) { store.removeAll() }
+            } label: {
+                Label("确认清空 \(store.items.count) 项", systemImage: "trash.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .fixedSize()
+                    .padding(.horizontal, 9)
+                    .frame(height: 22)
+                    .background(Capsule().fill(Color.red.opacity(0.85)))
+            }
+            .buttonStyle(IslandPressStyle())
+            .help("再点一次删除全部暂存内容，3 秒后自动取消")
+            .transition(.scale(scale: 0.8).combined(with: .opacity))
+        } else {
+            IslandButton(systemName: "trash", help: "清空全部内容") {
+                if preferences.confirmBeforeClear {
+                    beginClearConfirmation()
+                } else {
+                    withAnimation(IslandStyle.contentSpring) { store.removeAll() }
+                }
+            }
+            .transition(.opacity)
+        }
+    }
+
+    private func beginClearConfirmation() {
+        withAnimation(IslandStyle.contentSpring) { confirmingClear = true }
+        confirmClearTask?.cancel()
+        confirmClearTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            withAnimation(IslandStyle.contentSpring) { confirmingClear = false }
+        }
+    }
+
+    private func cancelClearConfirmation() {
+        confirmClearTask?.cancel()
+        confirmClearTask = nil
+        if confirmingClear {
+            withAnimation(IslandStyle.contentSpring) { confirmingClear = false }
         }
     }
 
@@ -288,6 +400,7 @@ struct NotchRootView: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.white.opacity(0.4))
         }
+        .glassLegible()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -303,14 +416,21 @@ struct NotchRootView: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
+                // LazyHStack 只为滚到可见范围附近的卡片建视图、请求缩略图；
+                // 再按页截断，滚到末尾时追加下一页。
+                LazyHStack(spacing: 10) {
                     if store.importingCount > 0 {
                         importingCard
                     }
-                    ForEach(filteredItems) { item in
+                    let items = filteredItems
+                    ForEach(items.prefix(loadedCount)) { item in
                         ShelfItemView(item: item, store: store, hoverPreview: hoverPreview) {
                             model.beginDraggingOut()
                         }
+                        .transition(cardTransition)
+                    }
+                    if items.count > loadedCount {
+                        loadMoreCard(remaining: items.count - loadedCount)
                     }
                 }
                 .padding(.horizontal, 4)
@@ -321,6 +441,46 @@ struct NotchRootView: View {
                 dragAllHandle
             }
         }
+    }
+
+    /// 列表末尾的「加载更多」占位：滚到这里自动加载下一页，也可以点击。
+    private func loadMoreCard(remaining: Int) -> some View {
+        Button {
+            loadNextPage()
+        } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(IslandStyle.wellFill())
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.white.opacity(0.7))
+                }
+                .frame(width: 60, height: 60)
+                Text("还有 \(remaining) 项")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .glassLegible()
+                    .frame(width: 74)
+            }
+            .padding(.vertical, 4)
+            .cardTile()
+        }
+        .buttonStyle(.plain)
+        .onAppear { loadNextPage() }
+    }
+
+    private func loadNextPage() {
+        loadedCount += Self.pageSize
+    }
+
+    /// 新卡片从左侧弹入，移除时缩小淡出。
+    private var cardTransition: AnyTransition {
+        guard !IslandStyle.reduceMotion else { return .opacity }
+        return .asymmetric(
+            insertion: .scale(scale: 0.6).combined(with: .opacity).combined(with: .offset(x: -12)),
+            removal: .scale(scale: 0.7).combined(with: .opacity)
+        )
     }
 
     /// 分类筛选行：全部 / 文件 / 图片 / 文本，只列出有内容的分类。
@@ -342,7 +502,10 @@ struct NotchRootView: View {
     private func filterChip(for category: ShelfCategory?, label: String, count: Int) -> some View {
         let isSelected = activeFilter == category
         return Button {
-            withAnimation(.easeOut(duration: 0.15)) { filter = category }
+            withAnimation(IslandStyle.contentSpring) {
+                filter = category
+                loadedCount = Self.pageSize
+            }
         } label: {
             HStack(spacing: 4) {
                 if let category {
@@ -356,18 +519,22 @@ struct NotchRootView: View {
             .foregroundStyle(isSelected ? Color.white : .white.opacity(0.6))
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
-            .background(
-                Capsule().fill(isSelected ? Color.accentColor.opacity(0.75) : .white.opacity(0.08))
-            )
+            .background {
+                if isSelected {
+                    Capsule().fill(IslandStyle.brandGradient().opacity(0.85))
+                } else {
+                    Capsule().fill(IslandStyle.chipFill())
+                }
+            }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(IslandPressStyle())
     }
 
     private var importingCard: some View {
         VStack(spacing: 6) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.white.opacity(0.09))
+                    .fill(IslandStyle.wellFill())
                 ProgressView()
                     .controlSize(.small)
                     .tint(.white.opacity(0.7))
@@ -380,6 +547,7 @@ struct NotchRootView: View {
                 .frame(width: 74)
         }
         .padding(.vertical, 4)
+        .cardTile()
     }
 
     /// 一次拖走当前列表全部内容的把手，跟随分类筛选。
@@ -396,7 +564,7 @@ struct NotchRootView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
         .background(
-            Capsule().fill(.white.opacity(0.08))
+            Capsule().fill(IslandStyle.chipFill())
         )
         .overlay {
             MultiFileDragView(
@@ -415,12 +583,16 @@ struct NotchRootView: View {
     private var dropOverlay: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.accentColor.opacity(0.16))
+                .fill(IslandStyle.brandGradient(startPoint: .topLeading, endPoint: .bottomTrailing).opacity(0.18))
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(0.9), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                .strokeBorder(
+                    IslandStyle.brandGradient(startPoint: .topLeading, endPoint: .bottomTrailing),
+                    style: StrokeStyle(lineWidth: 2, dash: [6, 4])
+                )
             VStack(spacing: 6) {
                 Image(systemName: "arrow.down.circle.fill")
                     .font(.system(size: 24))
+                    .symbolEffect(.pulse, options: .repeating, isActive: !IslandStyle.reduceMotion)
                 Text("松开即可存入")
                     .font(.system(size: 12, weight: .semibold))
             }
@@ -445,6 +617,8 @@ private struct PowerChipButton: View {
                 Text(power.wattsText ?? "功耗")
                     .font(.system(size: 10, weight: .semibold))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(.snappy, value: power.wattsText)
                     .foregroundStyle(.white.opacity(isHovering ? 1 : 0.8))
                     // 空间不足时 SwiftUI 会优先把文字压缩到零宽，必须固定尺寸。
                     .fixedSize()
@@ -452,12 +626,12 @@ private struct PowerChipButton: View {
             .padding(.horizontal, 8)
             .frame(height: 22)
             .background(
-                Capsule().fill(.white.opacity(isHovering ? 0.18 : 0.08))
+                Capsule().fill(IslandStyle.chipFill(hovering: isHovering))
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(IslandPressStyle())
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) { isHovering = hovering }
+            withAnimation(IslandStyle.hoverFade) { isHovering = hovering }
         }
         .help("打开功耗监测面板")
     }
@@ -476,16 +650,97 @@ private struct IslandButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(isActive ? Color.accentColor : .white.opacity(isHovering ? 1 : 0.7))
+                .foregroundStyle(isActive ? IslandStyle.brandBlue : .white.opacity(isHovering ? 1 : 0.7))
+                .contentTransition(.symbolEffect(.replace))
                 .frame(width: 22, height: 22)
                 .background(
-                    Circle().fill(.white.opacity(isHovering ? 0.18 : 0.08))
+                    Circle().fill(isActive
+                                  ? IslandStyle.brandBlue.opacity(0.2)
+                                  : IslandStyle.chipFill(hovering: isHovering))
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(IslandPressStyle())
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) { isHovering = hovering }
+            withAnimation(IslandStyle.hoverFade) { isHovering = hovering }
         }
         .help(help)
+    }
+}
+
+/// 岛的底板：纯黑或液态玻璃。两层同时存在、靠不透明度交叉过渡，
+/// 所以从刘海展开成面板时，黑色会在弹簧动画里逐渐化成玻璃。
+struct IslandBackground: View {
+    enum Material: Equatable {
+        case black
+        case glass
+        case tintedGlass
+    }
+
+    let shape: NotchShape
+    let size: CGSize
+    let material: Material
+    /// 顶栏高度（等于菜单栏高度）。这一条压在菜单栏上方，背后的菜单栏图标会透出来，
+    /// 和岛上的按钮叠在一起，所以只在这里加一道渐隐的暗色。
+    var headerHeight: CGFloat = 0
+
+    private var usesGlass: Bool {
+        IslandStyle.supportsGlass && material != .black
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            if IslandStyle.supportsGlass, #available(macOS 26.0, *) {
+                glassLayer
+                    .opacity(usesGlass ? 1 : 0)
+            }
+            shape
+                .fill(Color.black)
+                .opacity(usesGlass ? 0 : 1)
+                .overlay {
+                    shape.stroke(Color.white.opacity(material == .glass && !usesGlass ? 0.1 : 0), lineWidth: 0.5)
+                }
+        }
+        .shadow(color: .black.opacity(material == .black || usesGlass ? 0 : 0.5),
+                radius: 18, y: 10)
+    }
+
+    /// 玻璃只在视图范围内渲染，所以把视图左右各加宽一个反向圆角，
+    /// 再用「圆角画在内侧」的形状裁切，外形与黑色底板完全重合。
+    @available(macOS 26.0, *)
+    private var glassLayer: some View {
+        let glassShape = NotchShape(
+            bottomCornerRadius: shape.bottomCornerRadius,
+            topCornerRadius: shape.topCornerRadius,
+            earsInside: true
+        )
+        return Color.clear
+            .frame(width: size.width + shape.topCornerRadius * 2, height: size.height)
+            .glassEffect(glass, in: glassShape)
+            .overlay(alignment: .top) {
+                if material == .glass, headerHeight > 0 {
+                    glassShape
+                        .fill(LinearGradient(
+                            stops: [
+                                .init(color: .black.opacity(0.7), location: 0),
+                                .init(color: .black.opacity(0.55), location: headerHeight / max(size.height, 1)),
+                                .init(color: .black.opacity(0), location: (headerHeight + 18) / max(size.height, 1)),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ))
+                        .allowsHitTesting(false)
+                }
+            }
+    }
+
+    @available(macOS 26.0, *)
+    private var glass: Glass {
+        switch material {
+        case .tintedGlass:
+            .clear.tint(IslandStyle.brandBlue.opacity(0.18))
+        case .black, .glass:
+            // 透明款，背后内容清楚可见、边缘有折射；顶栏的可读性靠上面的渐隐暗色保证。
+            .clear
+        }
     }
 }

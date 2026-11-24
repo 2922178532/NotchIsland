@@ -51,6 +51,7 @@ final class Preferences: ObservableObject {
         static let hiddenMenuBarApps = "NotchIsland.hiddenMenuBarApps"
         static let importSoundName = "NotchIsland.importSoundName"
         static let dragPromptStyle = "NotchIsland.dragPromptStyle"
+        static let confirmBeforeClear = "NotchIsland.confirmBeforeClear"
     }
 
     /// 暂存内容保留的天数，0 表示不自动清理。
@@ -104,6 +105,11 @@ final class Preferences: ObservableObject {
         didSet { UserDefaults.standard.set(dragPromptStyle.rawValue, forKey: Key.dragPromptStyle) }
     }
 
+    /// 点「清空全部」时先要求再点一次确认，防止误触把暂存内容一次删光。
+    @Published var confirmBeforeClear: Bool {
+        didSet { UserDefaults.standard.set(confirmBeforeClear, forKey: Key.confirmBeforeClear) }
+    }
+
     /// 可供选择的存入提示音。
     static let importSoundOptions: [(name: String, title: String)] = [
         ("", "关闭"),
@@ -122,7 +128,8 @@ final class Preferences: ObservableObject {
         (0, "一直保留"),
         (1, "1 天"),
         (3, "3 天"),
-        (7, "7 天"),
+        (7, "7 天（默认）"),
+        (14, "14 天"),
         (30, "30 天"),
     ]
 
@@ -147,6 +154,7 @@ final class Preferences: ObservableObject {
             Key.autoCollectClipboard: false,
             Key.importSoundName: "Tink",
             Key.dragPromptStyle: DragPromptStyle.notch.rawValue,
+            Key.confirmBeforeClear: true,
         ])
         expirationDays = defaults.integer(forKey: Key.expirationDays)
         hideOnFullScreen = defaults.bool(forKey: Key.hideOnFullScreen)
@@ -161,5 +169,6 @@ final class Preferences: ObservableObject {
         dragPromptStyle = DragPromptStyle(
             rawValue: defaults.string(forKey: Key.dragPromptStyle) ?? ""
         ) ?? .notch
+        confirmBeforeClear = defaults.bool(forKey: Key.confirmBeforeClear)
     }
 }

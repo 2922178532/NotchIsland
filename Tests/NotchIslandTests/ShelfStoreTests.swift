@@ -131,6 +131,29 @@ final class ShelfStoreTests: XCTestCase {
     // MARK: - 持久化
 
     /// index.json 落盘后，新开的 store 指向同一目录应能读回来。
+    func testNextExpirationDateIsNilWhenKeepingForever() {
+        addText("一")
+        XCTAssertNil(store.nextExpirationDate(days: 0))
+    }
+
+    func testNextExpirationDateIsNilOnEmptyStore() {
+        XCTAssertNil(store.nextExpirationDate(days: 7))
+    }
+
+    func testNextExpirationDateFollowsOldestItem() {
+        let first = addText("一")
+        addText("二")
+        let expected = first.addedAt.addingTimeInterval(7 * 86_400)
+        XCTAssertEqual(store.nextExpirationDate(days: 7), expected)
+    }
+
+    func testItemExpirationDate() {
+        let item = addText("一")
+        XCTAssertNil(ShelfStore.expirationDate(of: item, days: 0))
+        XCTAssertEqual(ShelfStore.expirationDate(of: item, days: 1),
+                       item.addedAt.addingTimeInterval(86_400))
+    }
+
     func testItemsSurviveReload() {
         addText("持久化", name: "笔记")
         let expected = store.items.map(\.id)

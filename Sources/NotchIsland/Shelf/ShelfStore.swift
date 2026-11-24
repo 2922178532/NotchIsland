@@ -16,7 +16,13 @@ final class ShelfStore: ObservableObject {
     /// 正在后台复制的文件数量。
     @Published private(set) var importingCount = 0
     /// 最近一次操作的提示文案，用于在岛上做轻量反馈。
-    @Published var lastMessage: String?
+    @Published var lastMessage: String? {
+        didSet { messageSerial &+= 1 }
+    }
+    /// 每次写入 `lastMessage` 都加一，同样的文案重复出现时界面也能再提示一次。
+    @Published private(set) var messageSerial = 0
+    /// 每次成功存入新内容都加一，岛据此在刘海上做一次「收到了」的脉冲反馈。
+    @Published private(set) var importSerial = 0
 
     private let fileManager = FileManager.default
     private let rootURL: URL
@@ -96,7 +102,10 @@ final class ShelfStore: ObservableObject {
                     ? "文件存入失败"
                     : "已存入 \(imported.count) 个文件"
                 self.save()
-                if !imported.isEmpty { self.playImportSound() }
+                if !imported.isEmpty {
+                    self.importSerial &+= 1
+                    self.playImportSound()
+                }
             }
         }
         return candidates.count
@@ -164,6 +173,7 @@ final class ShelfStore: ObservableObject {
         items.insert(item, at: 0)
         save()
         lastMessage = "已存入 \(name)"
+        importSerial &+= 1
         playImportSound()
         return true
     }
@@ -200,6 +210,18 @@ final class ShelfStore: ObservableObject {
         items.removeAll { $0.addedAt < cutoff }
         save()
         return expired.count
+    }
+
+    /// 最早一项到期的时间；没有内容或 `days` 为 0 时返回 nil。
+    func nextExpirationDate(days: Int) -> Date? {
+        guard days > 0, let oldest = items.map(\.addedAt).min() else { return nil }
+        return oldest.addingTimeInterval(Double(days) * 86_400)
+    }
+
+    /// 某一项的到期时间，`days` 为 0 时返回 nil。
+    static func expirationDate(of item: ShelfItem, days: Int) -> Date? {
+        guard days > 0 else { return nil }
+        return item.addedAt.addingTimeInterval(Double(days) * 86_400)
     }
 
     // MARK: - 打开与定位

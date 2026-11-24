@@ -22,27 +22,44 @@ private struct CursorDropPromptView: View {
             }
         }
         .foregroundStyle(.white)
+        .glassLegible()
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(red: 0.32, green: 0.55, blue: 0.98),
-                                 Color(red: 0.62, green: 0.40, blue: 0.94)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+        .background { cardBackground }
+        // 面板和卡片一样大，留一圈边距给放大与玻璃的边缘高光，避免被窗口裁掉。
+        .padding(3)
+        .scaleEffect(state.isTargeted && !IslandStyle.reduceMotion ? 1.04 : 1)
+        .animation(IslandStyle.reduceMotion ? .easeOut(duration: 0.12)
+                   : .spring(response: 0.22, dampingFraction: 0.76), value: state.isTargeted)
+        .accessibilityLabel(state.isTargeted ? "松开即可存入刘海岛" : "拖到这里存入刘海岛")
+        .environment(\.colorScheme, .dark)
+    }
+
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
+    }
+
+    @ViewBuilder
+    private var cardBackground: some View {
+        if #available(macOS 26.0, *) {
+            // 液态玻璃带品牌色调，进入可放下范围时色调加深、边缘提亮。
+            // 和主面板一样用透明款，只带一点品牌色；进入可放下范围时色调加深、边缘提亮。
+            Color.clear
+                .glassEffect(
+                    .clear.tint(IslandStyle.brandBlue.opacity(state.isTargeted ? 0.32 : 0.14)),
+                    in: cardShape
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(.white.opacity(state.isTargeted ? 0.75 : 0.22), lineWidth: 1)
+                    cardShape.strokeBorder(.white.opacity(state.isTargeted ? 0.6 : 0), lineWidth: 1)
+                }
+        } else {
+            cardShape
+                .fill(IslandStyle.brandGradient(startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay {
+                    cardShape.stroke(.white.opacity(state.isTargeted ? 0.75 : 0.22), lineWidth: 1)
                 }
                 .shadow(color: .black.opacity(0.3), radius: 12, y: 5)
         }
-        .scaleEffect(state.isTargeted ? 1.04 : 1)
-        .animation(.spring(response: 0.22, dampingFraction: 0.76), value: state.isTargeted)
-        .accessibilityLabel(state.isTargeted ? "松开即可存入刘海岛" : "拖到这里存入刘海岛")
     }
 }
 

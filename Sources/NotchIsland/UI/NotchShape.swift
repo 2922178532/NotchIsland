@@ -7,6 +7,15 @@ import SwiftUI
 struct NotchShape: Shape {
     var bottomCornerRadius: CGFloat
     var topCornerRadius: CGFloat
+    /// 为真时把两侧反向圆角画在 `rect` 以内（主体左右各缩进 `topCornerRadius`）。
+    /// 液态玻璃只渲染在视图自身范围内，超出 `rect` 的部分会被裁掉，所以玻璃层要用这种画法。
+    var earsInside = false
+
+    init(bottomCornerRadius: CGFloat, topCornerRadius: CGFloat, earsInside: Bool = false) {
+        self.bottomCornerRadius = bottomCornerRadius
+        self.topCornerRadius = topCornerRadius
+        self.earsInside = earsInside
+    }
 
     var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(bottomCornerRadius, topCornerRadius) }
@@ -16,7 +25,10 @@ struct NotchShape: Shape {
         }
     }
 
-    func path(in rect: CGRect) -> Path {
+    func path(in fullRect: CGRect) -> Path {
+        let rect = earsInside
+            ? fullRect.insetBy(dx: min(topCornerRadius, fullRect.width / 4), dy: 0)
+            : fullRect
         let bottom = min(bottomCornerRadius, rect.height / 2, rect.width / 2)
         let top = min(topCornerRadius, rect.width / 2)
 

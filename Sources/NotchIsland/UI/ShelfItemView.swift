@@ -24,7 +24,9 @@ struct ShelfItemView: View {
         VStack(spacing: 6) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.white.opacity(isHovering ? 0.16 : 0.09))
+                    .fill(IslandStyle.wellFill(hovering: isHovering))
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.white.opacity(isHovering ? 0.18 : 0.05), lineWidth: 0.5)
 
                 if item.category == .text {
                     textCard
@@ -41,6 +43,20 @@ struct ShelfItemView: View {
                 }
             }
             .frame(width: iconSize.width, height: iconSize.height)
+            .overlay(alignment: .bottomTrailing) {
+                if let badge = typeBadge {
+                    Text(badge)
+                        .font(.system(size: 7, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1.5)
+                        .background(Capsule().fill(Color.black.opacity(0.6)))
+                        .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 0.5))
+                        .offset(x: 3, y: 3)
+                }
+            }
+            .scaleEffect(isHovering && !IslandStyle.reduceMotion ? 1.05 : 1)
+            .shadow(color: .black.opacity(isHovering ? 0.35 : 0), radius: 6, y: 3)
             .overlay(alignment: .topTrailing) {
                 if isHovering {
                     Button {
@@ -57,17 +73,30 @@ struct ShelfItemView: View {
                 }
             }
 
-            Text(item.fileName)
-                .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.85))
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(width: 74)
+            VStack(spacing: 1) {
+                Text(item.fileName)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(isHovering ? 0.95 : 0.85))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .glassLegible()
+                Text(subtitle)
+                    .font(.system(size: 9))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(IslandStyle.supportsGlass ? 0.6 : 0.4))
+                    .lineLimit(1)
+                    .glassLegible()
+            }
+            .frame(width: 74)
         }
         .padding(.vertical, 4)
+        .cardTile(hovering: isHovering)
         .contentShape(Rectangle())
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.15)) { isHovering = hovering }
+            withAnimation(IslandStyle.reduceMotion ? .easeOut(duration: 0.12)
+                          : .spring(response: 0.25, dampingFraction: 0.7)) {
+                isHovering = hovering
+            }
         }
         .background {
             ShelfHoverPreviewAnchor(item: item, url: store.fileURL(for: item), controller: hoverPreview)
@@ -81,6 +110,10 @@ struct ShelfItemView: View {
             store.open(item)
         }
         .contextMenu {
+            if let expiry = expiryDescription {
+                Text(expiry)
+                Divider()
+            }
             Button("打开") { store.open(item) }
             Button("复制到剪贴板") { store.copyToPasteboard(item) }
             Button("在访达中显示") { store.revealInFinder(item) }
@@ -115,22 +148,49 @@ struct ShelfItemView: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(.blue)
                         Text(linkDisplayText(textPreview))
-                            .font(.system(size: 7, weight: .medium))
+                            .font(.system(size: 8, weight: .medium))
                             .foregroundStyle(.blue.opacity(0.85))
-                            .lineLimit(4)
+                            .lineLimit(3)
                     }
                     .padding(5)
                 } else {
                     Text(textPreview)
-                        .font(.system(size: 6.5))
+                        .font(.system(size: 8))
                         .foregroundStyle(.black.opacity(0.8))
                         .multilineTextAlignment(.leading)
-                        .lineLimit(7)
+                        .lineLimit(4)
                         .padding(5)
                 }
             }
         }
         .frame(width: iconSize.width - 12, height: iconSize.height - 12)
+    }
+
+    /// 右键菜单顶部的到期提示，例如「3天后自动删除」；保存期限设为一直保留时不显示。
+    private var expiryDescription: String? {
+        guard let date = ShelfStore.expirationDate(of: item, days: Preferences.shared.expirationDays) else {
+            return nil
+        }
+        guard date > Date() else { return "即将自动删除" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.unitsStyle = .full
+        return "\(formatter.localizedString(for: date, relativeTo: Date()))自动删除"
+    }
+
+    /// 卡片右下角的类型角标：文件夹或扩展名；文本卡片本身已经能看出类型，不加。
+    private var typeBadge: String? {
+        guard item.category != .text else { return nil }
+        if item.isDirectory { return "文件夹" }
+        let ext = (item.fileName as NSString).pathExtension
+        guard !ext.isEmpty, ext.count <= 5 else { return nil }
+        return ext.uppercased()
+    }
+
+    /// 文件名下方的一行说明：文本和链接标出类型，其余显示大小。
+    private var subtitle: String {
+        if item.category == .text { return isLink ? "链接" : "文本" }
+        return item.formattedSize
     }
 
     /// 链接只显示域名和路径开头，去掉协议前缀的噪音。

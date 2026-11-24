@@ -82,9 +82,9 @@ struct MenuBarStripView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.accentColor.opacity(0.85)))
+                    .background(Capsule().fill(IslandStyle.brandGradient()))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(IslandPressStyle())
         }
     }
 }

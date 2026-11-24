@@ -81,17 +81,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - 过期清理
 
+    /// 到期的内容按时删除：定时器对准最早一项的到期时刻，最长一小时复查一次。
+    /// 睡眠期间定时器不走，唤醒后立即补做一次。
     private func startExpirationCleanup() {
         runExpirationCleanup()
-        let timer = Timer(timeInterval: 3600, repeats: true) { _ in
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
             MainActor.assumeIsolated { [weak self] in self?.runExpirationCleanup() }
         }
-        RunLoop.main.add(timer, forMode: .common)
-        cleanupTimer = timer
     }
 
     private func runExpirationCleanup() {
-        store?.removeExpired(olderThan: Preferences.shared.expirationDays)
+        let days = Preferences.shared.expirationDays
+        store?.removeExpired(olderThan: days)
+
+        cleanupTimer?.invalidate()
+        var fireDate = Date().addingTimeInterval(3600)
+        if let next = store?.nextExpirationDate(days: days) {
+            fireDate = min(fireDate, max(next, Date()).addingTimeInterval(1))
+        }
+        let timer = Timer(fire: fireDate, interval: 0, repeats: false) { _ in
+            MainActor.assumeIsolated { [weak self] in self?.runExpirationCleanup() }
+        }
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        cleanupTimer = timer
     }
 
     // MARK: - 菜单栏
@@ -129,6 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case importSound = 12
         case idleRestModeMenu = 13
         case dragPromptStyleMenu = 14
+        case confirmBeforeClear = 15
     }
 
     private func buildMenu() -> NSMenu {
@@ -153,7 +171,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "功耗监测设置…", action: #selector(openPowerSettings), keyEquivalent: "")
         menu.addItem(.separator())
 
-        let expiration = NSMenuItem(title: "自动清理", action: nil, keyEquivalent: "")
+        let confirmClear = NSMenuItem(title: "清空前二次确认", action: #selector(toggleConfirmBeforeClear), keyEquivalent: "")
+        confirmClear.tag = MenuTag.confirmBeforeClear.rawValue
+        menu.addItem(confirmClear)
+
+        let expiration = NSMenuItem(title: "保存期限（到期自动删除）", action: nil, keyEquivalent: "")
         expiration.tag = MenuTag.expirationMenu.rawValue
         expiration.submenu = buildExpirationMenu()
         menu.addItem(expiration)
@@ -294,8 +316,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store?.copyAllToPasteboard()
     }
 
+    /// 菜单里的「清空」没法像岛上的按钮那样原地变成确认按钮，开着二次确认时弹系统对话框。
     @objc private func clearShelf() {
-        store?.removeAll()
+        guard let store, !store.isEmpty else { return }
+        if Preferences.shared.confirmBeforeClear {
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "清空刘海岛里的全部 \(store.items.count) 项内容？"
+            alert.informativeText = "暂存的副本会被删除，无法恢复。原始文件不受影响。"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "清空")
+            alert.addButton(withTitle: "取消")
+            alert.buttons.first?.hasDestructiveAction = true
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        store.removeAll()
+    }
+
+    @objc private func toggleConfirmBeforeClear() {
+        Preferences.shared.confirmBeforeClear.toggle()
     }
 
     /// 只隐藏收起态的渐变指示条，悬停、拖拽等交互不受影响。
@@ -425,6 +464,9 @@ extension AppDelegate: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         if let item = menu.item(withTag: MenuTag.toggleIsland.rawValue) {
             item.state = Preferences.shared.hideIdleIndicator ? .on : .off
+        }
+        if let item = menu.item(withTag: MenuTag.confirmBeforeClear.rawValue) {
+            item.state = Preferences.shared.confirmBeforeClear ? .on : .off
         }
         if let item = menu.item(withTag: MenuTag.autoCollectClipboard.rawValue) {
             item.state = Preferences.shared.autoCollectClipboard ? .on : .off
